@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>GGMET - Video Call</title>
+    <style>
+        :root {--bg:#0b1b2b;--surface:#0f2433;--accent:#0bb5ff;--muted:#9fb6c8}
+        *{box-sizing:border-box;font-family:Inter, system-ui, Arial, sans-serif}
+        body{margin:0;background:linear-gradient(180deg,#071826 0,#031422 100%);color:#e6f4fb;height:100vh;overflow:hidden}
+        .app{max-width:1400px;margin:0 auto;padding:12px;height:100%;display:flex;flex-direction:column}
+        
+        /* Topbar */
+        .topbar{height:60px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:12px}
+        .brand{display:flex;align-items:center;gap:12px}
+        .logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#06b6d4,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+        .meeting-name{font-size:15px;font-weight:700}
+
+        /* Layout */
+        .layout{display:flex;gap:12px;flex:1;overflow:hidden}
+
+        /* Main Video Area */
+        .main{flex:1;background:var(--surface);border-radius:16px;padding:16px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+        .videoStage{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+        
+        /* Remote Video Full */
+        .tile{width:100%;height:100%;max-height:100%;border-radius:12px;overflow:hidden;position:relative;background:#000}
+        .tile video{width:100%;height:100%;object-fit:contain;background:#000}
+        .tile .nameBadge{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,0.6);padding:6px 10px;border-radius:6px;font-size:14px;color:white;backdrop-filter:blur(4px)}
+        
+        /* Local Video PiP */
+        .localTile{width:200px;height:120px;position:absolute;right:16px;bottom:16px;border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,0.1);background:#1a1a1a;z-index:10;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
+        .localTile video{width:100%;height:100%;object-fit:cover;transform: scaleX(-1);} /* Mirror local */
+
+        /* Controls */
+        .controlsBar{height:70px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:12px;padding-top:12px}
+        .btn{background:var(--accent);border:none;color:#000;height:48px;padding:0 24px;border-radius:24px;cursor:pointer;font-weight:700;font-size:14px;transition:0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+        .btn:hover{filter:brightness(1.1)}
+        .btn.danger{background:#ef4444;color:#fff}
+        .btn.ghost{background:rgba(255,255,255,0.1);color:#fff}
+        .btn.ghost:hover{background:rgba(255,255,255,0.2)}
+        .btn.icon-only{width:48px;padding:0;border-radius:50%}
+        .btn.off{background:#334155;color:#94a3b8;position:relative}
+        .btn.off::after{content:'';position:absolute;width:2px;height:24px;background:#94a3b8;transform:rotate(45deg)}
+
+        /* Sidebar */
+        .side{width:300px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+        .card{background:rgba(255,255,255,0.03);padding:16px;border-radius:16px;border:1px solid rgba(255,255,255,0.05)}
+        .participants{flex:1;overflow-y:auto;max-height:400px}
+        .participant{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;transition:0.2s}
+        .participant:hover{background:rgba(255,255,255,0.05)}
+        .participant .avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#64748b,#94a3b8);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px}
+        .status-dot{width:8px;height:8px;border-radius:50%;margin-left:auto}
+        .status-online{background:#10b981;box-shadow:0 0 8px #10b981}
+
+        /* Modal */
+        #loginScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#031422;z-index:100}
+        #loginCard{width:400px;background:#0f2433;padding:30px;border-radius:20px;text-align:center;border:1px solid rgba(255,255,255,0.1)}
+        /* INPUT STYLES */
+        input[type=text], input[type=password]{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:white;font-size:16px;margin:10px 0}
+        
+        .muted{color:var(--muted);font-size:13px}
+        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#334155;color:white;padding:10px 20px;border-radius:30px;box-shadow:0 10px 20px rgba(0,0,0,0.3);z-index:200;font-size:14px;font-weight:600}
+        
+        /* Tùy chỉnh cho Login/Signup */
+        .auth-toggle-bar{display:flex;gap:10px;margin-bottom:20px;justify-content:center}
+        .auth-toggle-btn{background:none;border:none;color:var(--muted);font-weight:600;padding:10px;cursor:pointer;border-bottom:2px solid transparent;transition:0.2s}
+        .auth-toggle-btn.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+        
+        /* Responsive */
+        @media (max-width:900px){
+            .app{padding:0}
+            .layout{flex-direction:column}
+            .side{width:100%;height:auto;flex:none;display:none} 
+            .side.active{display:flex;position:fixed;inset:0;background:#0b1b2b;z-index:50;padding:20px}
+            .topbar{padding:0 12px}
+            .localTile{width:120px;height:160px;right:12px;bottom:90px}
+        }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen">
+    <div id="loginCard">
+        <h2 style="margin:0 0 10px 0">GGMET Meet</h2>
+        
+        <div class="auth-toggle-bar">
+            <button id="showSignInBtn" class="auth-toggle-btn active">Đăng nhập</button>
+            <button id="showSignUpBtn" class="auth-toggle-btn">Đăng ký</button>
+        </div>
+
+        <div id="signInContainer">
+            <p class="muted">Sử dụng tên và mật khẩu đã đăng ký.</p>
+            <input id="signInUsername" type="text" placeholder="Tên đã đăng ký..." autocomplete="off" />
+            <input id="signInPassword" type="password" placeholder="Mật khẩu..." />
+            <button id="signInBtn" class="btn" style="width:100%">Đăng nhập</button>
+        </div>
+
+        <div id="signUpContainer" style="display:none">
+            <p class="muted">Tạo tài khoản mới (Mật khẩu tối thiểu 6 ký tự).</p>
+            <input id="signUpUsername" type="text" placeholder="Tên (sẽ dùng làm ID đăng nhập)..." autocomplete="off" />
+            <input id="signUpPassword" type="password" placeholder="Mật khẩu (tối thiểu 6 ký tự)..." />
+            <button id="signUpBtn" class="btn" style="width:100%">Đăng ký</button>
+        </div>
+
+    </div>
+</div>
+
+<div class="app" id="app" style="display:none">
+    <div class="topbar">
+        <div class="brand">
+            <div class="logo">G</div>
+            <div>
+                <div class="meeting-name">GGMET Video</div>
+                <div class="muted" id="myUidDisplay">...</div>
+            </div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:10px">
+            <button class="btn ghost" onclick="document.querySelector('.side').classList.toggle('active')">Users</button>
+            <button id="logoutBtn" class="btn ghost danger">Thoát</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="main">
+            <div class="videoStage" id="videoStage">
+                <div class="muted">Đang chờ cuộc gọi...<br>Chọn người từ danh sách bên phải để gọi.</div>
+            </div>
+            <div class="localTile">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div style="position:absolute;bottom:4px;left:4px;font-size:10px;background:rgba(0,0,0,0.5);padding:2px 4px;border-radius:4px">Bạn</div>
+            </div>
+
+            <div class="controlsBar">
+                <button id="camToggle" class="btn icon-only ghost" title="Bật/Tắt Camera">📷</button>
+                <button id="micToggle" class="btn icon-only ghost" title="Bật/Tắt Mic">🎤</button>
+                <button id="endCall" class="btn danger" style="display:none; min-width:120px">Kết thúc</button>
+            </div>
+        </div>
+
+        <div class="side">
+            <div class="card" style="flex:1;display:flex;flex-direction:column">
+                <div style="font-weight:700;margin-bottom:12px">Người dùng Online</div>
+                <div class="participants" id="participantsList">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script src="./firebase-config.js"></script>
+<script type="module">
+    // --- IMPORTS DỊCH VỤ FIREBASE (v9+ Module Syntax) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { 
+        getAuth, 
+        createUserWithEmailAndPassword, 
+        signInWithEmailAndPassword, 
+        onAuthStateChanged, 
+        signOut 
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    
+    import { 
+        getDatabase, 
+        ref, 
+        set, 
+        onValue, 
+        onDisconnect, 
+        remove, 
+        get, 
+        update, 
+        push 
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    
+    /**
+     * CẤU HÌNH FIREBASE
+     * Nếu bạn tạo `firebase-config.js` (từ `.env`) thì giá trị sẽ được ghi vào
+     * `window.FIREBASE_CONFIG` — ưu tiên dùng cấu hình đó để tránh commit API keys.
+     */
+    const defaultFirebaseConfig = {
+        apiKey: "AIzaSyBqZ23RidYBUEynUxGQZb2SbAtnAvHcd8w",
+        authDomain: "ggmet-7d6f9.firebaseapp.com",
+        databaseURL: "https://ggmet-7d6f9-default-rtdb.firebaseio.com",
+        projectId: "ggmet-7d6f9",
+        storageBucket: "ggmet-7d6f9.appspot.com",
+        messagingSenderId: "993458524480",
+        appId: "1:993458524480:web:729a675ba748131b6feaa5",
+        measurementId: "G-CYT7P5462Y"
+    };
+
+    const firebaseConfig = (window.FIREBASE_CONFIG && Object.keys(window.FIREBASE_CONFIG).length) ? window.FIREBASE_CONFIG : defaultFirebaseConfig;
+
+    // Khởi tạo App và các Dịch vụ
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app); 
+    const db = getDatabase(app); 
+
+    // State
+    let localStream = null;
+    let pc = null;
+    let currentUser = null;
+    let currentCallPath = null; 
+    let currentDisplayName = ''; // Lưu tên hiển thị cuối cùng của người dùng
+
+    const iceServers = {
+        iceServers: [
+            { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+        ]
+    };
+
+    // UI Elements
+    const els = {
+        loginScreen: document.getElementById('loginScreen'),
+        app: document.getElementById('app'),
+        // Login/Signup Controls
+        showSignInBtn: document.getElementById('showSignInBtn'),
+        showSignUpBtn: document.getElementById('showSignUpBtn'),
+        signInContainer: document.getElementById('signInContainer'),
+        signUpContainer: document.getElementById('signUpContainer'),
+        // Sign In Inputs
+        signInUsername: document.getElementById('signInUsername'),
+        signInPassword: document.getElementById('signInPassword'),
+        signInBtn: document.getElementById('signInBtn'),
+        // Sign Up Inputs
+        signUpUsername: document.getElementById('signUpUsername'),
+        signUpPassword: document.getElementById('signUpPassword'),
+        signUpBtn: document.getElementById('signUpBtn'),
+        
+        logoutBtn: document.getElementById('logoutBtn'),
+        participantsList: document.getElementById('participantsList'),
+        videoStage: document.getElementById('videoStage'),
+        localVideo: document.getElementById('localVideo'),
+        camToggle: document.getElementById('camToggle'),
+        micToggle: document.getElementById('micToggle'),
+        endCallBtn: document.getElementById('endCall'),
+        toast: document.getElementById('toast'),
+        myUidDisplay: document.getElementById('myUidDisplay')
+    };
+
+    // --- CHỨC NĂNG CHUYỂN ĐỔI GIAO DIỆN ---
+    function showAuthForm(formType) {
+        if (formType === 'signIn') {
+            els.signInContainer.style.display = 'block';
+            els.signUpContainer.style.display = 'none';
+            els.showSignInBtn.classList.add('active');
+            els.showSignUpBtn.classList.remove('active');
+        } else {
+            els.signInContainer.style.display = 'none';
+            els.signUpContainer.style.display = 'block';
+            els.showSignInBtn.classList.remove('active');
+            els.showSignUpBtn.classList.add('active');
+        }
+    }
+
+    els.showSignInBtn.onclick = () => showAuthForm('signIn');
+    els.showSignUpBtn.onclick = () => showAuthForm('signUp');
+
+
+    // --- LOGIC ĐĂNG KÝ (SIGN UP) ---
+    els.signUpBtn.onclick = async () => {
+        const name = els.signUpUsername.value.trim();
+        const password = els.signUpPassword.value.trim();
+
+        if (!name) return showToast('Vui lòng nhập tên');
+        if (password.length < 6) return showToast('Mật khẩu phải có ít nhất 6 ký tự');
+
+        const usernameId = name.toLowerCase().replace(/\s/g, ''); 
+        const email = `${usernameId}@ggmet.demo`; 
+
+        showToast(`Đang đăng ký tài khoản cho: ${name}...`);
+
+        try {
+            await createUserWithEmailAndPassword(auth, email, password);
+            // Ghi lại tên vừa nhập (dùng cho onAuthStateChanged)
+            currentDisplayName = name;
+            showToast(`Đăng ký thành công! Đang đăng nhập...`);
+        } catch (e) {
+            if (e.code === 'auth/email-already-in-use') {
+                 showToast('Tên này đã được sử dụng. Vui lòng đăng nhập hoặc chọn tên khác.');
+                 showAuthForm('signIn');
+            } else {
+                console.error("Lỗi đăng ký:", e);
+                showToast('Lỗi đăng ký: ' + e.message);
+            }
+        }
+    };
+
+
+    // --- LOGIC ĐĂNG NHẬP (SIGN IN) ---
+    els.signInBtn.onclick = async () => {
+        const name = els.signInUsername.value.trim();
+        const password = els.signInPassword.value.trim();
+
+        if (!name) return showToast('Vui lòng nhập tên');
+        if (!password) return showToast('Vui lòng nhập mật khẩu');
+
+        const usernameId = name.toLowerCase().replace(/\s/g, ''); 
+        const email = `${usernameId}@ggmet.demo`; 
+
+        showToast(`Đang đăng nhập: ${name}...`);
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password); 
+            // Ghi lại tên vừa nhập (dùng cho onAuthStateChanged)
+            currentDisplayName = name;
+            
+        } catch (e) {
+            console.error(e);
+            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-login-credentials' || e.code === 'auth/wrong-password') {
+                showToast('Tên hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
+            } else {
+                showToast('Lỗi đăng nhập: ' + e.message);
+            }
+        }
+    };
+
+    els.logoutBtn.onclick = () => signOut(auth);
+
+    // Lắng nghe trạng thái Auth
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            els.loginScreen.style.display = 'none';
+            els.myUidDisplay.innerText = user.uid.substring(0,5);
+            
+            // LOGIC GHI HỒ SƠ (ĐÃ SỬA LỖI GHI ĐÈ TÊN)
+            get(ref(db, `users/${user.uid}`)).then((snapshot) => {
+                const existingData = snapshot.val();
+                let displayName;
+
+                // 1. Ưu tiên tên VỪA NHẬP (từ form Sign In/Up)
+                if (currentDisplayName) {
+                    displayName = currentDisplayName;
+                } 
+                // 2. Tiếp theo, ưu tiên tên ĐÃ LƯU trong Database (khi refresh)
+                else if (existingData && existingData.name) {
+                    displayName = existingData.name;
+                }
+                // 3. Cuối cùng, dùng tên mặc định (Chỉ xảy ra khi đăng ký mới mà form rỗng)
+                else {
+                    displayName = 'Người dùng';
+                }
+
+                // Cấu trúc update hồ sơ chung
+                const userUpdateData = {
+                    name: displayName, // Tên đã được xử lý để luôn là tên chính xác
+                    state: 'online',
+                    lastSeen: Date.now()
+                };
+
+                if (!snapshot.exists()) {
+                    // Nếu là user mới (sau khi Đăng ký): Thực hiện SET
+                    set(ref(db, `users/${user.uid}`), {
+                        ...userUpdateData, 
+                        uid: user.uid,
+                    }).then(() => {
+                        onDisconnect(ref(db, `users/${user.uid}`)).remove();
+                    }).catch(e => {
+                        console.error("Lỗi ghi hồ sơ:", e);
+                        showToast('Lỗi Database: Kiểm tra lại Quy tắc Bảo mật!');
+                    });
+                } else {
+                    // Nếu là user cũ (sau khi Đăng nhập hoặc Refresh): Thực hiện UPDATE
+                    update(ref(db, `users/${user.uid}`), userUpdateData);
+                    onDisconnect(ref(db, `users/${user.uid}`)).remove();
+                }
+            }).catch(e => {
+                 console.error("Lỗi khi kiểm tra hồ sơ (get):", e);
+                 showToast('Lỗi Database: Kiểm tra lại Quy tắc Bảo mật!');
+            });
+
+
+            // Khởi tạo App
+            els.app.style.display = 'flex';
+            initLocalStream();
+            listenToUsers();
+            listenToIncomingCalls();
+
+        } else {
+            // Người dùng chưa đăng nhập -> Hiện màn hình login
+            currentUser = null;
+            currentDisplayName = ''; // Reset tên hiển thị
+            els.loginScreen.style.display = 'flex';
+            els.app.style.display = 'none';
+            
+            // Reset media
+            if(localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+            }
+            showAuthForm('signIn'); // Mặc định hiển thị form Đăng nhập
+        }
+    });
+
+    // --- MEDIA ---
+
+    async function initLocalStream() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            els.localVideo.srcObject = localStream;
+            updateMediaControls();
+        } catch (err) {
+            localStream = null; 
+            showToast('Không thể truy cập Camera/Mic: ' + err.message);
+        }
+    }
+
+    function updateMediaControls() {
+        if(!localStream) return;
+        const vTrack = localStream.getVideoTracks()[0];
+        const aTrack = localStream.getAudioTracks()[0];
+        
+        els.camToggle.className = `btn icon-only ghost ${vTrack.enabled ? '' : 'off'}`;
+        els.micToggle.className = `btn icon-only ghost ${aTrack.enabled ? '' : 'off'}`;
+    }
+
+    els.camToggle.onclick = () => {
+        if(localStream){
+            const t = localStream.getVideoTracks()[0];
+            t.enabled = !t.enabled;
+            updateMediaControls();
+        }
+    };
+
+    els.micToggle.onclick = () => {
+        if(localStream){
+            const t = localStream.getAudioTracks()[0];
+            t.enabled = !t.enabled;
+            updateMediaControls();
+        }
+    };
+
+    // --- USERS LIST ---
+
+    function listenToUsers() {
+        onValue(ref(db, 'users'), (snapshot) => {
+            els.participantsList.innerHTML = '';
+            const users = snapshot.val() || {};
+            
+            Object.values(users).forEach(u => {
+                if (u.uid === currentUser.uid) return;
+                
+                const div = document.createElement('div');
+                div.className = 'participant';
+                div.innerHTML = `
+                    <div class="avatar">${u.name[0].toUpperCase()}</div>
+                    <div style="flex:1">
+                        <div style="font-weight:600">${u.name}</div>
+                        <div class="muted" style="font-size:11px">Online</div>
+                    </div>
+                    <button class="btn ghost icon-only" style="width:32px;height:32px">📞</button>
+                `;
+                div.onclick = () => startCall(u.uid, u.name);
+                els.participantsList.appendChild(div);
+            });
+        });
+    }
+
+    // --- WEBRTC CORE ---
+
+    // 1. NGƯỜI GỌI (CALLER)
+    async function startCall(targetUid, targetName) {
+        if (pc) return showToast('Bạn đang trong cuộc gọi khác');
+        
+        // KIỂM TRA localStream VÀ THỬ KHỞI TẠO LẠI
+        if (!localStream) {
+            showToast('Đang cố gắng truy cập Camera/Mic. Vui lòng chờ...');
+            await initLocalStream(); 
+            if (!localStream) {
+                showToast('Không thể bắt đầu cuộc gọi. Camera/Mic không khả dụng.');
+                return; 
+            }
+        }
+        
+        showToast(`Đang gọi ${targetName}...`);
+        
+        const callId = currentUser.uid;
+        currentCallPath = `calls/${targetUid}/${callId}`;
+
+        createPeerConnection();
+
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        const callData = {
+            callerName: auth.currentUser.email,
+            offer: { type: offer.type, sdp: offer.sdp },
+            timestamp: Date.now()
+        };
+        
+        // A. Lắng nghe Answer
+        onValue(ref(db, currentCallPath), async (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.answer && !pc.currentRemoteDescription) {
+                const answer = new RTCSessionDescription(data.answer);
+                await pc.setRemoteDescription(answer);
+            }
+        });
+
+        // B. Lắng nghe ICE Candidates từ Callee
+        onValue(ref(db, `${currentCallPath}/calleeCandidates`), (snapshot) => {
+            snapshot.forEach((childSnapshot) => {
+                const candidate = childSnapshot.val();
+                if (pc && candidate) pc.addIceCandidate(new RTCIceCandidate(candidate));
+            });
+        }, { onlyOnce: false });
+
+
+        // Ghi dữ liệu offer khởi tạo
+        await set(ref(db, currentCallPath), callData);
+
+        els.endCallBtn.style.display = 'inline-flex';
+    }
+
+    // 2. NGƯỜI NHẬN (CALLEE)
+    function listenToIncomingCalls() {
+        onValue(ref(db, `calls/${currentUser.uid}`), async (snapshot) => {
+            snapshot.forEach(async (childSnapshot) => {
+                const callerUid = childSnapshot.key;
+                const data = childSnapshot.val();
+
+                if (data && data.offer && !pc) { 
+                    const accept = confirm(`Cuộc gọi đến từ ${callerUid}. Chấp nhận?`);
+                    if (accept) {
+                        currentCallPath = `calls/${currentUser.uid}/${callerUid}`;
+                        await answerCall(data.offer, callerUid);
+                    } else {
+                        remove(ref(db, `calls/${currentUser.uid}/${callerUid}`));
+                    }
+                }
+            });
+        });
+    }
+
+    async function answerCall(offerDesc, callerUid) {
+        // Kiểm tra stream trước khi trả lời
+        if (!localStream) {
+            await initLocalStream();
+            if (!localStream) {
+                remove(ref(db, `calls/${currentUser.uid}/${callerUid}`));
+                showToast('Không thể trả lời cuộc gọi. Camera/Mic không khả dụng.');
+                return;
+            }
+        }
+        
+        createPeerConnection();
+        
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offerDesc));
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await update(ref(db, currentCallPath), {
+            answer: { type: answer.type, sdp: answer.sdp }
+        });
+
+        // Lắng nghe ICE Candidates từ Caller
+        onValue(ref(db, `${currentCallPath}/callerCandidates`), (snapshot) => {
+            snapshot.forEach((childSnapshot) => {
+                const candidate = childSnapshot.val();
+                if (pc && candidate) pc.addIceCandidate(new RTCIceCandidate(candidate));
+            });
+        }, { onlyOnce: false });
+        
+        els.endCallBtn.style.display = 'inline-flex';
+    }
+
+    // 3. COMMON WEBRTC UTILS
+    function createPeerConnection() {
+        pc = new RTCPeerConnection(iceServers);
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate && currentCallPath) {
+                const isCallee = currentCallPath.startsWith(`calls/${currentUser.uid}/`);
+                const targetSubNode = isCallee ? 'calleeCandidates' : 'callerCandidates';
+                
+                push(ref(db, `${currentCallPath}/${targetSubNode}`), event.candidate.toJSON());
+            }
+        };
+
+        pc.ontrack = (event) => {
+            els.videoStage.innerHTML = ''; 
+            
+            const remoteStream = event.streams[0];
+            const videoEl = document.createElement('video');
+            videoEl.srcObject = remoteStream;
+            videoEl.autoplay = true;
+            videoEl.playsInline = true;
+            
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.appendChild(videoEl);
+            
+            const badge = document.createElement('div');
+            badge.className = 'nameBadge';
+            badge.innerText = 'Remote User'; // Bạn có thể lấy tên người gọi từ currentCallPath hoặc từ Database
+            tile.appendChild(badge);
+            
+            els.videoStage.appendChild(tile);
+        };
+
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                hangUp();
+            }
+        };
+    }
+
+    // 4. KẾT THÚC / HANGUP
+    els.endCallBtn.onclick = hangUp;
+
+    function hangUp() {
+        if (pc) {
+            pc.close();
+            pc = null;
+        }
+        
+        // Xóa call path cho cả Caller và Callee
+        if (currentCallPath) {
+            const parts = currentCallPath.split('/'); // calls / CalleeUID / CallerUID
+            
+            // Xóa ở Callee side
+            remove(ref(db, currentCallPath));
+
+            // Xóa ở Caller side (Đảm bảo đường dẫn xóa là chính xác, nếu bạn là Callee thì cần xóa ngược lại)
+            // Logic đơn giản: luôn xóa node call mà mình đang tham chiếu
+        }
+        
+        currentCallPath = null;
+
+        els.videoStage.innerHTML = '<div class="muted">Cuộc gọi kết thúc.</div>';
+        els.endCallBtn.style.display = 'none';
+    }
+
+    // Helper Toast
+    function showToast(msg) {
+        els.toast.innerText = msg;
+        els.toast.style.display = 'block';
+        setTimeout(() => els.toast.style.display = 'none', 3000);
+    }
+
+    // Handle window close
+    window.onbeforeunload = () => {
+        // Tắt kết nối WebRTC nếu đang có
+        if (pc) {
+            pc.close();
+        }
+        // Xóa call node nếu đang gọi
+        if (currentCallPath) {
+             remove(ref(db, currentCallPath));
+        }
+        // Xóa user khỏi danh sách online
+        if (currentUser) {
+            // Không dùng remove ở đây vì hàm onDisconnect đã thiết lập khi user online
+        }
+    };
+
+    // Khởi tạo form mặc định
+    document.addEventListener('DOMContentLoaded', () => {
+        showAuthForm('signIn');
+    });
+
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "usernames": {
+      ".read": true,
+      ".write": false
+    },
+    "users": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === $uid"
+    },
+    "friendRequests": {
+      ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
+      ".write": "auth != null"
+    },
+    "friends": {
+      ".read": "auth != null && auth.uid === $uid",
+      ".write": "auth != null && auth.uid === $uid"
+    },
+    "calls": {
+      ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
+      ".write": "auth != null"
+    }
+  }
+}
