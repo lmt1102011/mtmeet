@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Call — MTMET</title>
+  <style>
+    :root{--bg:#0b1b2b;--surface:#12161a;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial}
+    header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent)}
+    .logo{width:44px;height:44;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center}
+    .stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:18px}
+    .tile{background:#000;border-radius:12px;overflow:hidden;position:relative;min-height:140px}
+    video{width:100%;height:100%;object-fit:cover}
+    .controls{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--surface);padding:10px 14px;border-radius:28px;display:flex;gap:10px;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+    .controlBtn{padding:10px 14px;border-radius:999px;border:none;background:var(--accent);color:#fff;cursor:pointer}
+    .btnGhost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">M</div>
+    <div>
+      <div id="roomTitle" style="font-weight:700">Room</div>
+      <div id="meInfo" style="font-size:13px;color:var(--muted)"></div>
+    </div>
+  </header>
+
+  <div id="stage" class="stage"></div>
+
+  <div class="controls">
+    <button id="muteBtn" class="controlBtn">MIC</button>
+    <button id="camBtn" class="controlBtn">CAM</button>
+    <button id="leaveBtn" class="controlBtn btnGhost">Rời</button>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+    import { getDatabase, ref, set, onValue, remove, push } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+    const app = initializeApp(window.FIREBASE_CONFIG);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const stage = document.getElementById('stage');
+    const roomTitle = document.getElementById('roomTitle');
+    const meInfo = document.getElementById('meInfo');
+    const muteBtn = document.getElementById('muteBtn');
+    const camBtn = document.getElementById('camBtn');
+    const leaveBtn = document.getElementById('leaveBtn');
+
+    let roomId = new URL(location.href).searchParams.get('room');
+    let me = null; // { uid, username, displayName }
+    let localStream = null;
+    const pcs = {}; // peerId -> RTCPeerConnection
+    const tiles = {}; // peerId -> elements
+    let iceServers = { iceServers:[{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    function elt(t,attrs={},txt=''){const e=document.createElement(t);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(txt) e.innerText=txt;return e}
+
+    onAuthStateChanged(auth, async user=>{
+      if(!user) { location.href = 'login.html'; return; }
+      const uid = user.uid;
+      const snap = await (await fetch('') , 0);
+      // fetch profile from DB
+      importUserProfile(uid);
+    });
+
+    async function importUserProfile(uid){
+      const s = await (await fetch('') , 0);
+      // simpler approach: read once from RTDB via REST is cumbersome -> use onValue
+      onValue(ref(db, `users/${uid}`), snapshot=>{
+        const data = snapshot.val(); if(!data) return;
+        me = { uid, username: data.username, displayName: data.displayName };
+        meInfo.innerText = me.displayName;
+        initCall();
+      });
+    }
+
+    // create local tile
+    function createLocalTile(){
+      const tile = elt('div',{class:'tile',id:'localTile'});
+      const v = document.createElement('video'); v.autoplay=true; v.muted=true; v.playsInline=true;
+      tile.appendChild(v);
+      const badge = elt('div',{}, me.displayName || 'Bạn'); badge.style.position='absolute'; badge.style.left='12px'; badge.style.bottom='12px'; badge.style.padding='6px 10px'; badge.style.background='rgba(33,150,243,0.9)'; badge.style.borderRadius='8px'; tile.appendChild(badge);
+      stage.appendChild(tile);
+      tiles[me.uid] = { el: tile, video: v };
+      return tiles[me.uid];
+    }
+
+    async function initCall(){
+      if(!roomId) { roomId = prompt('Không tìm thấy room ID. Nhập room ID:'); if(!roomId) return; }
+      roomTitle.innerText = 'Room: ' + roomId;
+
+      try{
+        localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+      }catch(e){ alert('Cần quyền camera/mic'); return; }
+
+      const local = createLocalTile(); local.video.srcObject = localStream;
+
+      // announce presence
+      await set(ref(db, `rooms/${roomId}/participants/${me.uid}`), { name: me.displayName, joinedAt: Date.now() });
+      // ensure removal on disconnect
+      // onDisconnect not imported above because we didn't, for simplicity clients remain until leave
+
+      // listen participants
+      onValue(ref(db, `rooms/${roomId}/participants`), snapshot=>{
+        const val = snapshot.val() || {};
+        // for each participant create offer if not exist
+        Object.keys(val).forEach(pid=>{
+          if(pid === me.uid) return;
+          if(!pcs[pid]) createOffer(pid, val[pid].name);
+        });
+        // cleanup peers not present
+        Object.keys(pcs).forEach(k=>{ if(!val[k]) closePeer(k); });
+      });
+
+      // listen signals to me
+      onValue(ref(db, `rooms/${roomId}/signals/${me.uid}`), snapshot=>{
+        const data = snapshot.val() || {};
+        Object.entries(data).forEach(async ([fromUid,msg])=>{
+          await handleSignal(fromUid,msg);
+          remove(ref(db, `rooms/${roomId}/signals/${me.uid}/${fromUid}`));
+        });
+      });
+    }
+
+    async function createOffer(peerUid, peerName){
+      const pc = new RTCPeerConnection(iceServers);
+      pcs[peerUid] = pc;
+      // create tile
+      const tile = elt('div',{class:'tile',id:'tile_'+peerUid}); const v = document.createElement('video'); v.autoplay=true; v.playsInline=true; tile.appendChild(v);
+      const badge = elt('div',{}, peerName || peerUid); badge.style.position='absolute'; badge.style.left='12px'; badge.style.bottom='12px'; badge.style.padding='6px 10px'; badge.style.background='rgba(0,0,0,0.4)'; badge.style.borderRadius='8px'; tile.appendChild(badge);
+      stage.appendChild(tile); tiles[peerUid]={el:tile,video:v};
+
+      localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+      pc.ontrack = e=>{ tiles[peerUid].video.srcObject = e.streams[0]; };
+      pc.onicecandidate = evt=>{ if(evt.candidate) set(ref(db, `rooms/${roomId}/signals/${peerUid}/${me.uid}`), { type:'candidate', candidate: evt.candidate.toJSON(), from: me.uid }); };
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      await set(ref(db, `rooms/${roomId}/signals/${peerUid}/${me.uid}`), { type:'offer', sdp: offer.sdp, from: me.uid, name: me.displayName });
+    }
+
+    async function handleSignal(fromUid,msg){
+      let pc = pcs[fromUid];
+      if(msg.type === 'offer'){
+        if(pcs[fromUid]) return; // already
+        pc = new RTCPeerConnection(iceServers); pcs[fromUid] = pc;
+        // create tile
+        const tile = elt('div',{class:'tile',id:'tile_'+fromUid}); const v = document.createElement('video'); v.autoplay=true; v.playsInline=true; tile.appendChild(v);
+        const badge = elt('div',{}, msg.name || fromUid); badge.style.position='absolute'; badge.style.left='12px'; badge.style.bottom='12px'; badge.style.padding='6px 10px'; badge.style.background='rgba(0,0,0,0.4)'; badge.style.borderRadius='8px'; tile.appendChild(badge);
+        stage.appendChild(tile); tiles[fromUid]={el:tile,video:v};
+
+        if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+        pc.ontrack = e=>{ tiles[fromUid].video.srcObject = e.streams[0]; };
+        pc.onicecandidate = evt=>{ if(evt.candidate) set(ref(db, `rooms/${roomId}/signals/${fromUid}/${me.uid}`), { type:'candidate', candidate: evt.candidate.toJSON(), from: me.uid }); };
+        await pc.setRemoteDescription({ type:'offer', sdp: msg.sdp });
+        const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+        await set(ref(db, `rooms/${roomId}/signals/${fromUid}/${me.uid}`), { type:'answer', sdp: answer.sdp, from: me.uid });
+      } else if(msg.type === 'answer'){
+        if(pc) await pc.setRemoteDescription({ type:'answer', sdp: msg.sdp });
+      } else if(msg.type === 'candidate'){
+        if(pc) try{ await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }catch(e){ console.warn(e); }
+      }
+    }
+
+    function closePeer(uid){ if(pcs[uid]) try{ pcs[uid].close(); }catch(e){} delete pcs[uid]; if(tiles[uid] && tiles[uid].el) tiles[uid].el.remove(); delete tiles[uid]; }
+
+    // mute / cam
+    muteBtn.onclick = ()=>{
+      if(!localStream) return; const a = localStream.getAudioTracks()[0]; if(a) { a.enabled = !a.enabled; muteBtn.innerText = a.enabled ? 'MIC' : 'MIC OFF'; }
+    };
+    camBtn.onclick = ()=>{
+      if(!localStream) return; const v = localStream.getVideoTracks()[0]; if(v) { v.enabled = !v.enabled; camBtn.innerText = v.enabled ? 'CAM' : 'CAM OFF'; }
+    };
+
+    leaveBtn.onclick = async ()=>{
+      // remove participant node
+      if(me && roomId) await remove(ref(db, `rooms/${roomId}/participants/${me.uid}`));
+      Object.keys(pcs).forEach(k=>closePeer(k));
+      // go back
+      location.href = 'index.html';
+    };
+  </script>
+</body>
+</html>

@@ -6,19 +6,49 @@
     },
     "users": {
       ".read": true,
-      ".write": "auth != null && auth.uid === $uid"
+      ".write": "auth != null",
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && auth.uid === $uid"
+      }
     },
     "friendRequests": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
-      ".write": "auth != null"
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null",
+        "$fromUid": {
+          ".write": "auth != null"
+        }
+      }
     },
-    "friends": {
-      ".read": "auth != null && auth.uid === $uid",
-      ".write": "auth != null && auth.uid === $uid"
+    "invites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null"
+      }
     },
-    "calls": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
-      ".write": "auth != null"
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "participants": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "signals": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$fromUid": {
+            "$toUid": {
+              ".write": "auth != null && auth.uid === $fromUid"
+            }
+          }
+        }
+      }
     }
   }
 }
+
