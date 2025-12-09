@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MTMET - Redirecting...</title>
+</head>
+<body>
+  <script>
+    // Kiểm tra đăng nhập qua Firebase
+    fetch('firebase-config.js').then(() => {
+      // Nếu có firebase-config thì load nó
+      const script = document.createElement('script');
+      script.src = 'firebase-config.js';
+      script.onload = () => {
+        const authScript = document.createElement('script');
+        authScript.type = 'module';
+        authScript.textContent = `
+          import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+          import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+          
+          const app = initializeApp(window.FIREBASE_CONFIG);
+          const auth = getAuth(app);
+          
+          onAuthStateChanged(auth, user => {
+            if (user) {
+              location.href = 'index.html';
+            } else {
+              location.href = 'login.html';
+            }
+          });
+        `;
+        document.body.appendChild(authScript);
+      };
+      document.body.appendChild(script);
+    });
+  </script>
+</body>
+</html>
