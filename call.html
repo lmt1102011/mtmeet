@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"/>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>MTMET — Video Call</title>
+<title>MTMET — Video Call PRO</title>
 <style>
 :root{--bg:#0b1b2b;--surface:#12161a;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed;--danger:#b71c1c;--tile-radius:14px}
 body{margin:0;height:100vh;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial;display:flex;flex-direction:column}
@@ -28,6 +28,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 .controlBtn.danger{background:var(--danger)}
 .controlBtn.no-perm{background:#4e1a1a}
 .controlBtn.mic-active{box-shadow:0 0 18px rgba(0,230,118,0.22);}
+/* Popup invite */
 .popup{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:999}
 .popup.hidden{display:none}
 .popupContent{width:360px;max-height:75vh;background:var(--surface);border-radius:14px;overflow:auto;padding:14px;box-shadow:0 0 40px rgba(0,0,0,0.4)}
@@ -46,6 +47,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 </style>
 </head>
 <body>
+
 <header>
   <div class="logo">M</div>
   <div>
@@ -58,9 +60,9 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
   </div>
 </header>
 
-<div id="stageWrap"><div id="stage" role="region" aria-live="polite"></div></div>
+<div id="stageWrap"><div id="stage"></div></div>
 
-<div class="controls" role="toolbar" aria-label="call controls">
+<div class="controls">
   <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">SET</button>
   <button id="muteBtn" class="controlBtn dim" title="Toggle mic">MIC</button>
   <button id="camBtn" class="controlBtn dim" title="Toggle cam">CAM</button>
@@ -68,7 +70,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 </div>
 
 <!-- Invite Popup -->
-<div id="invitePopup" class="popup hidden" aria-hidden="true">
+<div id="invitePopup" class="popup hidden">
   <div class="popupContent">
     <div class="popupHeader">
       <div>Chọn bạn để mời</div>
@@ -78,15 +80,12 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
   </div>
 </div>
 
-<script src="firebase-config.js"></script>
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set, push, onValue, onChildAdded, remove, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
-
-const app = initializeApp(window.FIREBASE_CONFIG);
-const auth = getAuth(app);
-const db = getDatabase(app);
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
+<script>
+const firebaseConfig = {/* điền config của bạn */};
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 const stage = document.getElementById('stage');
 const meInfo = document.getElementById('meInfo');
@@ -96,23 +95,26 @@ const requestPermBtn = document.getElementById('requestPermBtn');
 const muteBtn = document.getElementById('muteBtn');
 const camBtn = document.getElementById('camBtn');
 const leaveBtn = document.getElementById('leaveBtn');
-
 const invitePopup = document.getElementById('invitePopup');
 const friendListDiv = document.getElementById('friendList');
 const closeInvite = document.getElementById('closeInvite');
 
-let roomId = new URL(location.href).searchParams.get('room') || "demo-room";
-let me = null;
-let localStream = null;
-let localMicEnabled = false;
-let localCamEnabled = false;
-let permissionDeniedCam = false;
-let permissionDeniedMic = false;
+let roomId = new URLSearchParams(location.search).get('room') || "demo-room";
+let uid = localStorage.getItem('uid');
+let username = localStorage.getItem('username');
+if(!uid){ location.href='login.html'; }
+
+meName.innerText = username;
+meInfo.innerText = uid;
+
+let localStream=null;
+let localMicEnabled=false;
+let localCamEnabled=false;
 let pcs = {};
 let tiles = {};
 let audioAnalyzers = {};
 
-const elt = (t, attrs={}, txt='') => { const e=document.createElement(t); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; };
+function elt(t,attrs={},txt=''){ const e=document.createElement(t); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; }
 function relayout(){ const count=Object.keys(tiles).length||1; const w=stage.clientWidth; let cols=1; if(w>=1400) cols=Math.min(4,count); else if(w>=900) cols=Math.min(3,count); else if(w>=600) cols=Math.min(2,count); else cols=1; stage.style.gridTemplateColumns=`repeat(${cols},1fr)`;}
 window.addEventListener('resize',relayout);
 
@@ -120,7 +122,7 @@ function createTile(uid,name){
   if(tiles[uid]) return tiles[uid];
   const tile = elt('div',{class:'tile'});
   const video = elt('video',{autoplay:true,playsinline:true});
-  const avatar = elt('div',{class:'avatar'}, name[0].toUpperCase());
+  const avatar = elt('div',{class:'avatar'},name[0].toUpperCase());
   const bottomBar = elt('div',{class:'bottomBar'});
   const badge = elt('div',{class:'badge'},name);
   const micDot = elt('div',{class:'micDot'});
@@ -134,192 +136,101 @@ function createTile(uid,name){
 
 function requestPermissions(){
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(stream=>{
-    localStream = stream;
-    localCamEnabled = true; 
-    localMicEnabled = true;
-    tiles['me'] = createTile('me', me.displayName || "Me");
-    tiles['me'].video.srcObject = localStream;
+    localStream=stream; localCamEnabled=true; localMicEnabled=true;
+    tiles['me']=createTile('me', username);
+    tiles['me'].video.srcObject=localStream;
     camBtn.classList.remove('dim','no-perm');
     muteBtn.classList.remove('dim','no-perm');
-    startMicAnalyzer('me', localStream);
+    startMicAnalyzer('me',localStream);
     joinRoom();
   }).catch(e=>{
-    console.error('getUserMedia error:', e);
-    if(e.name==="NotAllowedError"){
-      permissionDeniedCam = true;
-      permissionDeniedMic = true;
-      camBtn.classList.add('no-perm');
-      muteBtn.classList.add('no-perm');
-      alert("Vui lòng cấp quyền Camera & Micro để tham gia phòng!");
-    } else if(e.name==="NotFoundError"){
-      alert("Không tìm thấy camera hoặc microphone!");
-    } else {
-      alert("Lỗi: " + e.message);
-    }
+    console.error('getUserMedia error:',e);
+    if(e.name==="NotAllowedError"){ camBtn.classList.add('no-perm'); muteBtn.classList.add('no-perm'); alert("Vui lòng cấp quyền Camera & Micro!"); }
   });
 }
 
-muteBtn.onclick = ()=>{
-  if(!localStream || permissionDeniedMic) return;
-  localMicEnabled=!localMicEnabled;
-  localStream.getAudioTracks()[0].enabled=localMicEnabled;
-};
-camBtn.onclick = ()=>{
-  if(!localStream || permissionDeniedCam) return;
-  localCamEnabled=!localCamEnabled;
-  localStream.getVideoTracks()[0].enabled=localCamEnabled;
-};
-leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); location.href="index.html"; };
-
+muteBtn.onclick = ()=>{ if(!localStream) return; localMicEnabled=!localMicEnabled; localStream.getAudioTracks()[0].enabled=localMicEnabled; };
+camBtn.onclick = ()=>{ if(!localStream) return; localCamEnabled=!localCamEnabled; localStream.getVideoTracks()[0].enabled=localCamEnabled; };
+leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); localStorage.removeItem('uid'); localStorage.removeItem('username'); location.href="login.html"; };
 requestPermBtn.onclick = requestPermissions;
 
-inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); invitePopup.setAttribute('aria-hidden','false'); loadFriends(); }
-closeInvite.onclick=()=>{ invitePopup.classList.add('hidden'); invitePopup.setAttribute('aria-hidden','true'); }
+inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); loadFriends(); };
+closeInvite.onclick=()=>{ invitePopup.classList.add('hidden'); }
 
 async function loadFriends(){
   friendListDiv.innerHTML='<div style="color:#ccc;padding:10px;">Đang tải...</div>';
-  try {
-    if (!me || !me.uid) {
-      friendListDiv.innerHTML = '<div style="color:#f44;padding:10px;">Chưa đăng nhập!</div>';
-      return;
-    }
-    const friendsRef = ref(db, `users/${me.uid}/friends`);
-    const snapshot = await get(friendsRef);
-    const friendUids = snapshot.val() || {};
-    const friendKeys = Object.keys(friendUids);
-    if (friendKeys.length === 0) {
-      friendListDiv.innerHTML = '<div style="color:#999;padding:10px;">Chưa có bạn bè.</div>';
-      return;
-    }
-    friendListDiv.innerHTML = '';
-    for (const friendUid of friendKeys) {
-      const userRef = ref(db, `users/${friendUid}`);
-      const userSnap = await get(userRef);
-      const friendData = userSnap.val();
-      if (!friendData) continue;
-      const item = elt('div', {class:'item'});
-      const avatar = elt('div', {class:'friendAvatar'}, (friendData.displayName || 'U')[0]);
-      const name = elt('div', {}, friendData.displayName || 'Unknown');
-      const btn = elt('button', {class:'inviteBtn'}, 'Mời');
-      btn.onclick = async () => {
-        try {
-          const roomId = new URLSearchParams(location.search).get('room');
-          const inviteData = { 
-            from: me.uid, 
-            fromName: me.displayName, 
-            room: roomId,
-            time: Date.now() 
-          };
-          const inviteKey = 'i_' + Math.random().toString(36).slice(2,9);
-          await set(ref(db, `invites/${friendUid}/${inviteKey}`), inviteData);
-          btn.classList.add('sent'); 
-          btn.innerText='Đã gửi'; 
-          btn.disabled=true;
-        } catch (err) {
-          console.error('Send invite error:', err);
-          alert('Lỗi gửi mời: ' + err.message);
-        }
-      };
-      item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
-      friendListDiv.appendChild(item);
-    }
-  } catch (e) {
-    console.error('Load friends error:', e);
-    friendListDiv.innerHTML = '<div style="color:#f44;padding:10px;">Lỗi: ' + e.message + '</div>';
-  }
+  const snapshot = await db.ref('users').once('value');
+  const data = snapshot.val()||{};
+  friendListDiv.innerHTML='';
+  Object.keys(data).forEach(fid=>{
+    if(fid===uid) return;
+    const f = data[fid];
+    const item = elt('div',{class:'item'});
+    const avatar = elt('div',{class:'friendAvatar'}, f.username[0].toUpperCase());
+    const name = elt('div',{}, f.username);
+    const btn = elt('button',{class:'inviteBtn'},'Mời');
+    btn.onclick = async ()=>{
+      const inviteKey = 'i_'+Math.random().toString(36).slice(2,9);
+      await db.ref(`invites/${fid}/${inviteKey}`).set({from:uid,fromName:username,room:roomId,time:Date.now()});
+      btn.classList.add('sent'); btn.innerText='Đã gửi'; btn.disabled=true;
+    };
+    item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
+    friendListDiv.appendChild(item);
+  });
 }
-
-onAuthStateChanged(auth,user=>{
-  if(!user){ location.href="/login.html"; return; }
-  me=user;
-  meName.innerText=user.displayName||"Me";
-  meInfo.innerText=user.uid;
-});
 
 function joinRoom(){
-  const participantsRef = ref(db, 'rooms/'+roomId+'/participants');
-  const signalsRef = ref(db, 'rooms/'+roomId+'/signals');
-  set(ref(db,'rooms/'+roomId+'/participants/'+me.uid), {name: me.displayName||"Me"} );
-
-  onValue(participantsRef, snapshot=>{
-    const data = snapshot.val()||{};
-    Object.keys(data).forEach(uid=>{
-      if(uid===me.uid) return;
-      if(!pcs[uid]) {
-        const participantName = data[uid]?.name || 'User';
-        createPeer(uid, participantName);
-      }
+  const participantsRef = db.ref('rooms/'+roomId+'/participants');
+  const signalsRef = db.ref('rooms/'+roomId+'/signals');
+  participantsRef.child(uid).set({name:username});
+  participantsRef.on('value',snap=>{
+    const data = snap.val()||{};
+    Object.keys(data).forEach(pid=>{
+      if(pid===uid) return;
+      if(!pcs[pid]) createPeer(pid,data[pid].name);
     });
-    Object.keys(tiles).forEach(uid=>{
-      if(uid!=='me' && !data[uid]){ tiles[uid].el.remove(); delete tiles[uid]; pcs[uid]?.close(); delete pcs[uid]; }
+    Object.keys(tiles).forEach(tid=>{
+      if(tid!=='me' && !data[tid]){ tiles[tid].el.remove(); delete tiles[tid]; pcs[tid]?.close(); delete pcs[tid]; }
     });
   });
 
-  onChildAdded(signalsRef, snapshot=>{
-    const s = snapshot.val();
-    if(!s || s.to!==me.uid) return;
-    handleSignal(s.from, s.type, s.data);
-    remove(ref(db,'rooms/'+roomId+'/signals/'+snapshot.key));
+  signalsRef.on('child_added',snap=>{
+    const s=snap.val();
+    if(!s || s.to!==uid) return;
+    handleSignal(s.from,s.type,s.data);
+    signalsRef.child(snap.key).remove();
   });
 }
 
-function createPeer(uid, name){
+function createPeer(pid,name){
   const pc = new RTCPeerConnection();
-  pcs[uid]=pc;
-  tiles[uid]=createTile(uid, name || uid);
-  if(localStream) localStream.getTracks().forEach(track=>pc.addTrack(track,localStream));
-  pc.ontrack = e=>{
-    tiles[uid].video.srcObject = e.streams[0];
-    startMicAnalyzer(uid,e.streams[0]);
-  };
-  pc.onicecandidate = e=>{
-    if(e.candidate){
-      push(ref(db,'rooms/'+roomId+'/signals'),{
-        from:me.uid,to:uid,type:'candidate',data:e.candidate.toJSON()
-      });
-    }
-  };
-  pc.createOffer().then(offer=>{
-    pc.setLocalDescription(offer);
-    push(ref(db,'rooms/'+roomId+'/signals'),{
-      from:me.uid,to:uid,type:'offer',data:offer.toJSON()
-    });
+  pcs[pid]=pc;
+  tiles[pid]=createTile(pid,name);
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid,e.streams[0]); };
+  pc.onicecandidate = e=>{ if(e.candidate) db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'candidate',data:e.candidate.toJSON()}); };
+  pc.createOffer().then(o=>{
+    pc.setLocalDescription(o);
+    db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'offer',data:o.toJSON()});
   });
 }
 
 function handleSignal(from,type,data){
-  let pc = pcs[from];
-  if(!pc){ createPeer(from); pc=pcs[from]; }
-  if(type==='offer'){
-    pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{
-      pc.createAnswer().then(answer=>{
-        pc.setLocalDescription(answer);
-        push(ref(db,'rooms/'+roomId+'/signals'),{
-          from:me.uid,to:from,type:'answer',data:answer.toJSON()
-        });
-      });
-    });
-  } else if(type==='answer'){
-    pc.setRemoteDescription(new RTCSessionDescription(data));
-  } else if(type==='candidate'){
-    pc.addIceCandidate(new RTCIceCandidate(data));
-  }
+  let pc = pcs[from]; if(!pc){ createPeer(from); pc=pcs[from]; }
+  if(type==='offer'){ pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ pc.createAnswer().then(a=>{ pc.setLocalDescription(a); db.ref('rooms/'+roomId+'/signals').push({from:uid,to:from,type:'answer',data:a.toJSON()}); }); }); }
+  else if(type==='answer'){ pc.setRemoteDescription(new RTCSessionDescription(data)); }
+  else if(type==='candidate'){ pc.addIceCandidate(new RTCIceCandidate(data)); }
 }
 
-function startMicAnalyzer(uid,stream){
+function startMicAnalyzer(pid,stream){
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   source.connect(analyser);
   const data = new Uint8Array(analyser.frequencyBinCount);
-  audioAnalyzers[uid] = analyser;
-  function tick(){
-    analyser.getByteFrequencyData(data);
-    const volume = data.reduce((a,b)=>a+b,0)/data.length;
-    if(tiles[uid]) tiles[uid].micDot.classList.toggle('micOn',volume>30);
-    requestAnimationFrame(tick);
-  }
+  audioAnalyzers[pid]=analyser;
+  function tick(){ analyser.getByteFrequencyData(data); const vol = data.reduce((a,b)=>a+b,0)/data.length; if(tiles[pid]) tiles[pid].micDot.classList.toggle('micOn',vol>30); requestAnimationFrame(tick); }
   tick();
 }
 </script>

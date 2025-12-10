@@ -1,40 +1,20 @@
 {
   "rules": {
     "users": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid",
-        "friends": {
-          "$friendUid": {
-            ".read": "auth != null && auth.uid === $uid",
-            ".write": "auth != null && auth.uid === $uid"
-          }
-        }
-      }
+      ".read": true,
+      ".write": true
     },
-    "rooms": {
-      "$roomId": {
-        "participants": {
-          "$uid": {
-            ".read": "auth != null && root.child('rooms/'+$roomId+'/participants/'+auth.uid).exists()",
-            ".write": "auth != null && auth.uid === $uid"
-          }
-        },
-        "signals": {
-          "$signalId": {
-            ".read": "auth != null && (data.child('to').val() === auth.uid || data.child('from').val() === auth.uid)",
-            ".write": "auth != null && newData.child('from').val() === auth.uid"
-          }
-        }
-      }
+    "friendRequests": {
+      ".read": true,
+      ".write": true
     },
     "invites": {
-      "$uid": {
-        "$inviteId": {
-          ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && newData.child('from').val() === auth.uid"
-        }
-      }
+      ".read": true,
+      ".write": true
+    },
+    "rooms": {
+      ".read": true,
+      ".write": true
     }
   }
 }

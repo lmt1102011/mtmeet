@@ -1,93 +1,238 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MTMET - Danh sách bạn bè</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MTMET — Video Call PRO</title>
 <style>
-body{margin:0;font-family:Arial;background:#0b1b2b;color:#e8eaed}
-header{padding:12px;background:#12161a;display:flex;justify-content:space-between;align-items:center}
-.container{display:flex;gap:12px;padding:12px}
-.card{background:#12161a;padding:12px;border-radius:12px;flex:1}
-button{cursor:pointer}
-input{width:100%;padding:6px;border-radius:6px;border:1px solid #17202a;background:#0b1115;color:#e8eaed}
-.small{font-size:13px;color:#9fb0bd}
+:root{--bg:#0b1b2b;--surface:#12161a;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed;--danger:#b71c1c;--tile-radius:14px}
+body{margin:0;height:100vh;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+.logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center;font-weight:700}
+.header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+#roomTitle{font-weight:700}
+#meInfo{font-size:13px;color:var(--muted)}
+#inviteBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px;border-radius:8px;cursor:pointer}
+#stageWrap{flex:1;overflow:auto;padding:16px}
+#stage{display:grid;gap:12px;align-content:start}
+.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:150px;display:flex;align-items:center;justify-content:center}
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile .avatar{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;background:linear-gradient(135deg,#263238,#37474f);color:#fff}
+.tile .bottomBar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.badge{background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:10px;font-weight:600;color:var(--text)}
+.micDot{width:10px;height:10px;border-radius:50%;background:#6b6b6b;margin-left:8px;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+.micOn{background:#00e676;box-shadow:0 0 8px rgba(0,230,118,0.18)}
+.controls{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);padding:12px 14px;border-radius:40px;display:flex;gap:10px;box-shadow:0 10px 60px rgba(0,0,0,0.6);z-index:40}
+.controlBtn{width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.controlBtn.dim{filter:grayscale(60%) brightness(0.6)}
+.controlBtn.danger{background:var(--danger)}
+.controlBtn.no-perm{background:#4e1a1a}
+.controlBtn.mic-active{box-shadow:0 0 18px rgba(0,230,118,0.22);}
+/* Popup invite */
+.popup{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:999}
+.popup.hidden{display:none}
+.popupContent{width:360px;max-height:75vh;background:var(--surface);border-radius:14px;overflow:auto;padding:14px;box-shadow:0 0 40px rgba(0,0,0,0.4)}
+.popupHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:18px;font-weight:600}
+.closeBtn{border:none;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+.friendList .item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);margin-bottom:8px}
+.friendAvatar{width:40px;height:40px;background:linear-gradient(135deg,#455a64,#607d8b);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.inviteBtn{padding:6px 10px;border-radius:8px;border:none;cursor:pointer;background:var(--accent);color:#fff}
+.inviteBtn.sent{background:#4e1a1a;cursor:not-allowed}
+@media (min-width:1400px){#stage{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:1399px) and (min-width:900px){#stage{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:899px) and (min-width:600px){#stage{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:599px){#stage{grid-template-columns:repeat(1,1fr)}}
+.small{font-size:13px;color:var(--muted)}
+.hidden{display:none}
 </style>
 </head>
 <body>
+
 <header>
-  <div id="meDisplay">...</div>
-  <button id="btnLogout">Đăng xuất</button>
+  <div class="logo">M</div>
+  <div>
+    <div id="roomTitle">Room</div>
+    <div id="meInfo" class="small">...</div>
+  </div>
+  <div class="header-right">
+    <div id="meName" class="small"></div>
+    <button id="inviteBtn">Invite</button>
+  </div>
 </header>
-<div class="container">
-  <div class="card">
-    <h3>Danh sách bạn bè</h3>
-    <div id="friendsList">Đang tải...</div>
-    <hr>
-    <input id="searchUser" placeholder="Tìm người">
-    <button id="btnSearch">Tìm</button>
-    <div id="searchResults"></div>
+
+<div id="stageWrap"><div id="stage"></div></div>
+
+<div class="controls">
+  <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">SET</button>
+  <button id="muteBtn" class="controlBtn dim" title="Toggle mic">MIC</button>
+  <button id="camBtn" class="controlBtn dim" title="Toggle cam">CAM</button>
+  <button id="leaveBtn" class="controlBtn danger" title="Leave">✖</button>
+</div>
+
+<!-- Invite Popup -->
+<div id="invitePopup" class="popup hidden">
+  <div class="popupContent">
+    <div class="popupHeader">
+      <div>Chọn bạn để mời</div>
+      <button id="closeInvite" class="closeBtn">✖</button>
+    </div>
+    <div id="friendList" class="friendList"></div>
   </div>
 </div>
 
-<script src="firebase-config.js"></script>
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-import { getDatabase, ref, get, set, push, remove, onValue } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
+<script>
+const firebaseConfig = {/* điền config của bạn */};
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-const app = initializeApp(window.FIREBASE_CONFIG);
-const db = getDatabase(app);
+const stage = document.getElementById('stage');
+const meInfo = document.getElementById('meInfo');
+const meName = document.getElementById('meName');
+const inviteBtn = document.getElementById('inviteBtn');
+const requestPermBtn = document.getElementById('requestPermBtn');
+const muteBtn = document.getElementById('muteBtn');
+const camBtn = document.getElementById('camBtn');
+const leaveBtn = document.getElementById('leaveBtn');
+const invitePopup = document.getElementById('invitePopup');
+const friendListDiv = document.getElementById('friendList');
+const closeInvite = document.getElementById('closeInvite');
 
-let me = JSON.parse(localStorage.getItem('user'));
-if(!me) location.href='login.html';
+let roomId = new URLSearchParams(location.search).get('room') || "demo-room";
+let uid = localStorage.getItem('uid');
+let username = localStorage.getItem('username');
+if(!uid){ location.href='login.html'; }
 
-document.getElementById('meDisplay').innerText = me.displayName;
+meName.innerText = username;
+meInfo.innerText = uid;
 
-document.getElementById('btnLogout').onclick = ()=>{
-  localStorage.removeItem('user');
-  location.href='login.html';
-};
+let localStream=null;
+let localMicEnabled=false;
+let localCamEnabled=false;
+let pcs = {};
+let tiles = {};
+let audioAnalyzers = {};
 
-const friendsList = document.getElementById('friendsList');
-const searchUser = document.getElementById('searchUser');
-const btnSearch = document.getElementById('btnSearch');
-const searchResults = document.getElementById('searchResults');
+function elt(t,attrs={},txt=''){ const e=document.createElement(t); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; }
+function relayout(){ const count=Object.keys(tiles).length||1; const w=stage.clientWidth; let cols=1; if(w>=1400) cols=Math.min(4,count); else if(w>=900) cols=Math.min(3,count); else if(w>=600) cols=Math.min(2,count); else cols=1; stage.style.gridTemplateColumns=`repeat(${cols},1fr)`;}
+window.addEventListener('resize',relayout);
 
-function elt(tag,attrs={},txt=''){ const e=document.createElement(tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; }
-
-async function renderFriends(){
-  const snap = await get(ref(db,`users/${me.uid}/friends`));
-  const friends = snap.val() || {};
-  friendsList.innerHTML = '';
-  if(Object.keys(friends).length===0){ friendsList.innerText='Chưa có bạn bè'; return; }
-  for(const fid in friends){
-    const fSnap = await get(ref(db,`users/${fid}`));
-    const f = fSnap.val(); if(!f) continue;
-    const row = elt('div',{}, `${f.displayName} (${f.username})`);
-    friendsList.appendChild(row);
-  }
+function createTile(uid,name){
+  if(tiles[uid]) return tiles[uid];
+  const tile = elt('div',{class:'tile'});
+  const video = elt('video',{autoplay:true,playsinline:true});
+  const avatar = elt('div',{class:'avatar'},name[0].toUpperCase());
+  const bottomBar = elt('div',{class:'bottomBar'});
+  const badge = elt('div',{class:'badge'},name);
+  const micDot = elt('div',{class:'micDot'});
+  bottomBar.appendChild(badge); bottomBar.appendChild(micDot);
+  tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(bottomBar);
+  stage.appendChild(tile);
+  tiles[uid]={el:tile,video,avatar,badge,micDot};
+  relayout();
+  return tiles[uid];
 }
 
-async function searchNow(){
-  const q = searchUser.value.trim().toLowerCase();
-  searchResults.innerHTML='';
-  if(!q) return;
-  const allSnap = await get(ref(db,'users'));
-  const all = allSnap.val()||{};
-  for(const uid in all){
-    if(uid===me.uid) continue;
-    const u = all[uid];
-    if((u.username||'').toLowerCase().includes(q) || (u.displayName||'').toLowerCase().includes(q)){
-      const row = elt('div',{}, `${u.displayName} (${u.username})`);
-      searchResults.appendChild(row);
-    }
-  }
+function requestPermissions(){
+  navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(stream=>{
+    localStream=stream; localCamEnabled=true; localMicEnabled=true;
+    tiles['me']=createTile('me', username);
+    tiles['me'].video.srcObject=localStream;
+    camBtn.classList.remove('dim','no-perm');
+    muteBtn.classList.remove('dim','no-perm');
+    startMicAnalyzer('me',localStream);
+    joinRoom();
+  }).catch(e=>{
+    console.error('getUserMedia error:',e);
+    if(e.name==="NotAllowedError"){ camBtn.classList.add('no-perm'); muteBtn.classList.add('no-perm'); alert("Vui lòng cấp quyền Camera & Micro!"); }
+  });
 }
 
-btnSearch.onclick = searchNow;
-searchUser.onkeydown = e=>{if(e.key==='Enter') searchNow();}
+muteBtn.onclick = ()=>{ if(!localStream) return; localMicEnabled=!localMicEnabled; localStream.getAudioTracks()[0].enabled=localMicEnabled; };
+camBtn.onclick = ()=>{ if(!localStream) return; localCamEnabled=!localCamEnabled; localStream.getVideoTracks()[0].enabled=localCamEnabled; };
+leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); localStorage.removeItem('uid'); localStorage.removeItem('username'); location.href="login.html"; };
+requestPermBtn.onclick = requestPermissions;
 
-renderFriends();
+inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); loadFriends(); };
+closeInvite.onclick=()=>{ invitePopup.classList.add('hidden'); }
+
+async function loadFriends(){
+  friendListDiv.innerHTML='<div style="color:#ccc;padding:10px;">Đang tải...</div>';
+  const snapshot = await db.ref('users').once('value');
+  const data = snapshot.val()||{};
+  friendListDiv.innerHTML='';
+  Object.keys(data).forEach(fid=>{
+    if(fid===uid) return;
+    const f = data[fid];
+    const item = elt('div',{class:'item'});
+    const avatar = elt('div',{class:'friendAvatar'}, f.username[0].toUpperCase());
+    const name = elt('div',{}, f.username);
+    const btn = elt('button',{class:'inviteBtn'},'Mời');
+    btn.onclick = async ()=>{
+      const inviteKey = 'i_'+Math.random().toString(36).slice(2,9);
+      await db.ref(`invites/${fid}/${inviteKey}`).set({from:uid,fromName:username,room:roomId,time:Date.now()});
+      btn.classList.add('sent'); btn.innerText='Đã gửi'; btn.disabled=true;
+    };
+    item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
+    friendListDiv.appendChild(item);
+  });
+}
+
+function joinRoom(){
+  const participantsRef = db.ref('rooms/'+roomId+'/participants');
+  const signalsRef = db.ref('rooms/'+roomId+'/signals');
+  participantsRef.child(uid).set({name:username});
+  participantsRef.on('value',snap=>{
+    const data = snap.val()||{};
+    Object.keys(data).forEach(pid=>{
+      if(pid===uid) return;
+      if(!pcs[pid]) createPeer(pid,data[pid].name);
+    });
+    Object.keys(tiles).forEach(tid=>{
+      if(tid!=='me' && !data[tid]){ tiles[tid].el.remove(); delete tiles[tid]; pcs[tid]?.close(); delete pcs[tid]; }
+    });
+  });
+
+  signalsRef.on('child_added',snap=>{
+    const s=snap.val();
+    if(!s || s.to!==uid) return;
+    handleSignal(s.from,s.type,s.data);
+    signalsRef.child(snap.key).remove();
+  });
+}
+
+function createPeer(pid,name){
+  const pc = new RTCPeerConnection();
+  pcs[pid]=pc;
+  tiles[pid]=createTile(pid,name);
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid,e.streams[0]); };
+  pc.onicecandidate = e=>{ if(e.candidate) db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'candidate',data:e.candidate.toJSON()}); };
+  pc.createOffer().then(o=>{
+    pc.setLocalDescription(o);
+    db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'offer',data:o.toJSON()});
+  });
+}
+
+function handleSignal(from,type,data){
+  let pc = pcs[from]; if(!pc){ createPeer(from); pc=pcs[from]; }
+  if(type==='offer'){ pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ pc.createAnswer().then(a=>{ pc.setLocalDescription(a); db.ref('rooms/'+roomId+'/signals').push({from:uid,to:from,type:'answer',data:a.toJSON()}); }); }); }
+  else if(type==='answer'){ pc.setRemoteDescription(new RTCSessionDescription(data)); }
+  else if(type==='candidate'){ pc.addIceCandidate(new RTCIceCandidate(data)); }
+}
+
+function startMicAnalyzer(pid,stream){
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  audioAnalyzers[pid]=analyser;
+  function tick(){ analyser.getByteFrequencyData(data); const vol = data.reduce((a,b)=>a+b,0)/data.length; if(tiles[pid]) tiles[pid].micDot.classList.toggle('micOn',vol>30); requestAnimationFrame(tick); }
+  tick();
+}
 </script>
 </body>
 </html>
