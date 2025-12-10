@@ -79,22 +79,13 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
   </div>
 </div>
 
+<script src="firebase-config.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
 import { getDatabase, ref, set, push, onValue, onChildAdded, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDAtjOUgMkrZ0FRIaod0QV9b03qZZnlhu0",
-  authDomain: "messend-online.firebaseapp.com",
-  databaseURL: "https://messend-online-default-rtdb.firebaseio.com",
-  projectId: "messend-online",
-  storageBucket: "messend-online.appspot.com",
-  messagingSenderId: "103927627337",
-  appId: "1:103927627337:web:f5347fc34dd8de4ee00998"
-};
-
-const app = initializeApp(FIREBASE_CONFIG);
+const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
