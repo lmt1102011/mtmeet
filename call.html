@@ -1,55 +1,54 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>MTMET — Gọi nhóm (Upgraded)</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MTMET — Call (Permissions + VAD + Robust UI)</title>
 <style>
 :root{
   --bg:#0b1b2b; --surface:#12161a; --accent:#2196f3; --muted:#9fb0bd; --text:#e8eaed;
-  --tile-radius:14px;
+  --danger:#b71c1c; --tile-radius:14px;
 }
 *{box-sizing:border-box}
 body{margin:0;height:100vh;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial;display:flex;flex-direction:column}
 header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
 .logo{width:44px;height:44;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center;font-weight:700}
 .header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
-#invitePanel{position:absolute;top:72px;right:18px;background:var(--surface);padding:10px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.6);max-height:360px;overflow:auto;display:none;z-index:50}
-.invFriend{display:flex;justify-content:space-between;align-items:center;padding:6px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:6px}
-.roomInfo{font-weight:700}
-
-/* stage grid */
-#stageWrap{flex:1;overflow:auto;padding:18px}
-#stage{display:grid;gap:12px;align-content:start;grid-auto-rows:1fr}
+#roomTitle{font-weight:700}
+#inviteBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px;border-radius:8px;cursor:pointer}
+#stageWrap{flex:1;overflow:auto;padding:16px}
+#stage{display:grid;gap:12px;align-content:start}
 
 /* tile */
-.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:150px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center}
+.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:150px;display:flex;align-items:center;justify-content:center}
 .tile video{width:100%;height:100%;object-fit:cover;display:block}
 .tile .avatar{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;background:linear-gradient(135deg,#263238,#37474f);color:#fff}
 .tile .bottomBar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .badge{background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:10px;font-weight:600}
-.controls{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--surface);padding:10px 14px;border-radius:40px;display:flex;gap:10px;box-shadow:0 10px 60px rgba(0,0,0,0.6);z-index:40}
-.controlBtn{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700}
-.controlBtn.danger{background:#e53935}
-.smallBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px;border-radius:8px;cursor:pointer}
 
-/* mic indicator */
-.micDot{width:10px;height:10px;border-radius:50%;background:#f44336;margin-left:8px;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+/* mic indicator small on tile */
+.micDot{width:10px;height:10px;border-radius:50%;background:#6b6b6b;margin-left:8px;box-shadow:0 0 0 0 rgba(0,0,0,0)}
 .micOn{background:#00e676;box-shadow:0 0 8px rgba(0,230,118,0.18)}
 
-/* responsive */
-@media (min-width:1400px){
-  #stage{grid-template-columns:repeat(4,1fr)}
-}
-@media (max-width:1399px) and (min-width:900px){
-  #stage{grid-template-columns:repeat(3,1fr)}
-}
-@media (max-width:899px) and (min-width:600px){
-  #stage{grid-template-columns:repeat(2,1fr)}
-}
-@media (max-width:599px){
-  #stage{grid-template-columns:repeat(1,1fr)}
-}
+/* Controls */
+.controls{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);padding:12px 14px;border-radius:40px;display:flex;gap:10px;box-shadow:0 10px 60px rgba(0,0,0,0.6);z-index:40}
+.controlBtn{width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.controlBtn.dim{filter:grayscale(60%) brightness(0.6)}
+.controlBtn.danger{background:var(--danger)}
+.controlBtn.no-perm{background:#4e1a1a} /* dark red when permission denied */
+
+/* mic glow ring when active audio */
+.controlBtn.mic-active{box-shadow:0 0 18px rgba(0,230,118,0.22);}
+
+/* responsive grid */
+@media (min-width:1400px){ #stage{grid-template-columns:repeat(4,1fr)} }
+@media (max-width:1399px) and (min-width:900px){ #stage{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:899px) and (min-width:600px){ #stage{grid-template-columns:repeat(2,1fr)} }
+@media (max-width:599px){ #stage{grid-template-columns:repeat(1,1fr)} }
+
+/* small helpers */
+.small{font-size:13px;color:var(--muted)}
+.hidden{display:none}
 </style>
 </head>
 <body>
@@ -57,274 +56,253 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 <header>
   <div class="logo">M</div>
   <div>
-    <div id="roomTitle" class="roomInfo">Room</div>
-    <div id="meInfo" style="font-size:13px;color:var(--muted)">...</div>
+    <div id="roomTitle">Room</div>
+    <div id="meInfo" class="small">...</div>
   </div>
-
   <div class="header-right">
-    <div id="meName" style="color:var(--muted)"></div>
-    <button id="inviteBtn" class="smallBtn">Invite</button>
-    <button id="toggleGridBtn" class="smallBtn">Grid</button>
-    <div id="invitePanel" aria-hidden="true"></div>
+    <div id="meName" class="small"></div>
+    <button id="inviteBtn">Invite</button>
   </div>
 </header>
 
 <div id="stageWrap"><div id="stage" role="region" aria-live="polite"></div></div>
 
 <div class="controls" role="toolbar" aria-label="call controls">
-  <button id="muteBtn" class="controlBtn">MIC</button>
-  <button id="camBtn" class="controlBtn">CAM</button>
-  <button id="screenBtn" class="controlBtn">SCR</button>
-  <button id="leaveBtn" class="controlBtn danger">✖</button>
+  <button id="enablePermBtn" class="controlBtn" title="Enable Camera & Mic">⚙️</button>
+  <button id="muteBtn" class="controlBtn" title="Toggle mic">MIC</button>
+  <button id="camBtn" class="controlBtn" title="Toggle cam">CAM</button>
+  <!-- share removed per request -->
+  <button id="leaveBtn" class="controlBtn danger" title="Leave">✖</button>
 </div>
 
 <script src="firebase-config.js"></script>
 <script type="module">
-/*
-  call.html upgraded:
-  - wait for auth (prevent redirect)
-  - push-based signaling (avoid blinking)
-  - onDisconnect remove participant
-  - avatar fallback when cam off
-  - VAD mic indicator per tile
-  - responsive grid + manual toggle if needed
-  - invite UI showing friends list to send invites
-*/
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
 import {
-  getDatabase, ref, set, push, onChildAdded, onValue, remove, onDisconnect, get
+  getDatabase, ref, set, push, onValue, onChildAdded, remove, onDisconnect, get
 } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// UI refs
 const stage = document.getElementById('stage');
 const roomTitle = document.getElementById('roomTitle');
 const meInfo = document.getElementById('meInfo');
 const meName = document.getElementById('meName');
 const inviteBtn = document.getElementById('inviteBtn');
-const invitePanel = document.getElementById('invitePanel');
-const toggleGridBtn = document.getElementById('toggleGridBtn');
 
+const enablePermBtn = document.getElementById('enablePermBtn');
 const muteBtn = document.getElementById('muteBtn');
 const camBtn = document.getElementById('camBtn');
-const screenBtn = document.getElementById('screenBtn');
 const leaveBtn = document.getElementById('leaveBtn');
 
 let roomId = new URL(location.href).searchParams.get('room');
 let me = null;
 let localStream = null;
-let pcs = {};     // peerUid -> RTCPeerConnection
-let tiles = {};   // uid -> {el, video, avatar, micDot, camState}
-let vadIntervals = {}; // uid -> intervalId
-let usingGrid = true;
+let localCamEnabled = false;
+let localMicEnabled = false;
+let permissionDeniedCam = false;
+let permissionDeniedMic = false;
 
+let pcs = {}; // peerUid -> RTCPeerConnection
+let tiles = {}; // uid -> {el, video, avatar, micDot, badge}
+let vadIntervals = {}; // uid -> interval request
 const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // helpers
-function elt(tag, attrs={}, txt=''){
-  const e = document.createElement(tag);
-  for(const k in attrs) e.setAttribute(k, attrs[k]);
-  if(txt) e.innerText = txt;
-  return e;
-}
+const elt = (t, attrs={}, txt='') => { const e=document.createElement(t); for(const k in attrs) e.setAttribute(k, attrs[k]); if(txt) e.innerText = txt; return e; };
 
-function toHex(buf){
-  return Array.from(buf).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+// adjust grid
+function relayout(){ const count = Object.keys(tiles).length || 1; const w = stage.clientWidth; let cols=1; if(w>=1400) cols=Math.min(4,count); else if(w>=900) cols=Math.min(3,count); else if(w>=600) cols=Math.min(2,count); else cols=1; stage.style.gridTemplateColumns = `repeat(${cols},1fr)`; }
+window.addEventListener('resize', relayout);
 
-// ensure tile exists (create once)
+// ensure tile present
 function ensureTile(uid, name){
   if(tiles[uid]) return tiles[uid];
   const t = elt('div',{class:'tile', id:'tile_'+uid});
-  const v = document.createElement('video'); v.autoplay=true; v.playsInline=true; v.playsInline=true;
-  v.style.display = 'none';
-  const avatar = elt('div',{class:'avatar'}, name ? name[0].toUpperCase() : uid[0].toUpperCase());
+  const v = document.createElement('video'); v.autoplay=true; v.playsInline=true; v.muted = (uid===me.uid);
+  v.style.display = 'none'; // default hidden until cam true
+  const av = elt('div',{class:'avatar'}, (name && name[0])?name[0].toUpperCase():'?');
   const bottom = elt('div',{class:'bottomBar'});
   const badge = elt('div',{class:'badge'}, name || uid);
-  const right = elt('div',{}, '');
+  const right = elt('div',{});
   const micDot = elt('div',{class:'micDot'});
-  const camIcon = elt('div',{}, '📷');
-  right.appendChild(micDot); right.appendChild(camIcon);
+  right.appendChild(micDot);
   bottom.appendChild(badge); bottom.appendChild(right);
 
-  t.appendChild(v); t.appendChild(avatar); t.appendChild(bottom);
+  t.appendChild(v); t.appendChild(av); t.appendChild(bottom);
   stage.appendChild(t);
 
-  tiles[uid] = { el: t, video: v, avatar, badge, micDot, camIcon, camState:true };
+  tiles[uid] = { el:t, video:v, avatar:av, badge, micDot, name, cam:false, mic:false };
+  relayout();
   return tiles[uid];
 }
 
 function removeTile(uid){
   if(!tiles[uid]) return;
   try{ tiles[uid].el.remove(); }catch(e){}
-  if(vadIntervals[uid]) { clearInterval(vadIntervals[uid]); delete vadIntervals[uid]; }
+  if(vadIntervals[uid]) { cancelAnimationFrame(vadIntervals[uid]); delete vadIntervals[uid]; }
   delete tiles[uid];
+  relayout();
 }
 
-// VAD per stream -> toggle micDot micOn class
-function startVAD(stream, uid){
+// VAD for a stream -> animate micDot and mic button glow for local
+function startVADFor(uid, stream, isLocal=false){
   try{
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
-    src.connect(analyser);
     const data = new Uint8Array(analyser.frequencyBinCount);
-    if(vadIntervals[uid]) clearInterval(vadIntervals[uid]);
-    vadIntervals[uid] = setInterval(()=>{
+    src.connect(analyser);
+
+    function tick(){
       analyser.getByteFrequencyData(data);
-      let sum = 0; for(let i=0;i<data.length;i++) sum += data[i];
+      let sum=0; for(let i=0;i<data.length;i++) sum += data[i];
       const avg = sum / data.length;
-      const t = tiles[uid];
-      if(t){
-        if(avg > 10) t.micDot.classList.add('micOn'); else t.micDot.classList.remove('micOn');
+      const tile = tiles[uid];
+      if(tile){
+        if(avg > 10){ tile.micDot.classList.add('micOn'); } else { tile.micDot.classList.remove('micOn'); }
       }
-    }, 120);
+      if(isLocal){
+        if(avg > 10) muteBtn.classList.add('mic-active'); else muteBtn.classList.remove('mic-active');
+      }
+      vadIntervals[uid] = requestAnimationFrame(tick);
+    }
+    tick();
   }catch(e){
-    console.warn('VAD error', e);
+    console.warn('VAD failed', e);
   }
 }
 
-// layout relayout function to set rows/cols depending on count and available width
-function relayout(){
-  const count = Object.keys(tiles).length || 1;
-  const width = stage.clientWidth;
-  let cols = 1;
-  if(width >= 1400) cols = Math.min(4, count);
-  else if(width >= 900) cols = Math.min(3, count);
-  else if(width >= 600) cols = Math.min(2, count);
-  else cols = 1;
-  stage.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-}
-window.addEventListener('resize', relayout);
-
-// SIGNALING helpers (push messages)
-function signalsRefFor(toUid){ return ref(db, `rooms/${roomId}/signals/${toUid}`); }
-function participantsRef(){ return ref(db, `rooms/${roomId}/participants`); }
-
-// Listen for incoming signals to me using onChildAdded (push)
-function listenSignals(myUid){
-  const refMySignals = signalsRefFor(myUid);
-  onChildAdded(refMySignals, async snap => {
-    const key = snap.key; const msg = snap.val();
-    if(!msg) return;
-    try{
-      await handleSignal(msg.from, msg);
-    }catch(e){ console.error('handleSignal err', e); }
-    // remove processed message
-    try{ await remove(ref(db, `rooms/${roomId}/signals/${myUid}/${key}`)); }catch(e){}
-  });
+// try get devices; if denied, set flags
+async function tryGetMedia(constraints){
+  try{
+    const s = await navigator.mediaDevices.getUserMedia(constraints);
+    return { ok:true, stream:s };
+  }catch(e){
+    // handle permission denied or not available
+    return { ok:false, error:e };
+  }
 }
 
-// join room: write participant + onDisconnect
-async function joinRoom(){
+// join room participants node even if no media granted
+async function joinRoomNode(){
   const pref = ref(db, `rooms/${roomId}/participants/${me.uid}`);
-  await set(pref, { name: me.displayName, cam: true, mic: true, joinedAt: Date.now()});
-  try{ onDisconnect(pref).remove(); }catch(e){}
-  // watch participants to create offers for newcomers & cleanup
-  onValue(participantsRef(), snap=>{
-    const val = snap.val() || {};
+  await set(pref, { name: me.displayName, cam: !!localCamEnabled, mic: !!localMicEnabled, joinedAt: Date.now() });
+  try{ onDisconnect(pref).remove(); } catch(e){ console.warn('onDisconnect not supported', e); }
+}
+
+// listen participants and ensure tiles + create offers
+function watchParticipants(){
+  onValue(ref(db, `rooms/${roomId}/participants`), snapshot=>{
+    const val = snapshot.val() || {};
+    // ensure tiles for everyone
     Object.entries(val).forEach(([pid, info])=>{
-      if(pid === me.uid) return;
       ensureTile(pid, info.name);
-      if(!pcs[pid]) createOffer(pid, info.name);
-    });
-    // cleanup peers who left
-    Object.keys(pcs).forEach(k => { if(!val[k]) closePeer(k); });
-    // update tiles cam/mic status
-    Object.entries(val).forEach(([pid, info])=>{
-      if(tiles[pid]){
-        tiles[pid].avatar.style.display = info.cam ? 'none' : 'flex';
-        tiles[pid].video.style.display = info.cam ? 'block' : 'none';
-        tiles[pid].camState = !!info.cam;
-        if(tiles[pid].badge) tiles[pid].badge.innerText = info.name || pid;
-        if(info.mic) tiles[pid].micDot.classList.add('micOn'); else tiles[pid].micDot.classList.remove('micOn');
+      // update cam/mic indicators and video display depending on info
+      const t = tiles[pid];
+      if(t){
+        t.cam = !!info.cam;
+        t.mic = !!info.mic;
+        // show avatar or video placeholder based on cam flag
+        if(t.cam && t.video.srcObject) {
+          t.video.style.display = 'block'; t.avatar.style.display = 'none';
+        } else {
+          t.video.style.display = 'none'; t.avatar.style.display = 'flex';
+        }
+        if(info.name) t.badge.innerText = info.name;
+        t.micDot.classList.toggle('micOn', !!info.mic);
       }
     });
-    relayout();
+    // create offers to new participants if we have local stream or even if not we still create peer (we'll add no tracks)
+    Object.keys(val).forEach(pid=>{
+      if(pid === me.uid) return;
+      if(!pcs[pid]) createOffer(pid, val[pid].name);
+    });
+    // cleanup peers whose participants removed
+    Object.keys(pcs).forEach(k=>{ if(!val[k]) closePeer(k); });
+    // also remove tiles for those not in participants
+    Object.keys(tiles).forEach(k=>{ if(!val[k]) removeTile(k); });
   });
-  listenSignals(me.uid);
 }
 
-// create local tile and attach stream
-function createLocalTile(){
-  const t = ensureTile(me.uid, me.displayName);
-  t.video.muted = true;
-  t.video.srcObject = localStream;
-  t.video.style.display = localStream.getVideoTracks()[0].enabled ? 'block' : 'none';
-  t.avatar.style.display = localStream.getVideoTracks()[0].enabled ? 'none' : 'flex';
-  startVAD(localStream, me.uid);
-  relayout();
+// Listen incoming signals (push-based) for myself using onChildAdded
+function listenSignalsForMyself(){
+  const mySignalsRef = ref(db, `rooms/${roomId}/signals/${me.uid}`);
+  onChildAdded(mySignalsRef, async snap=>{
+    const key = snap.key; const msg = snap.val();
+    if(!msg) return;
+    try{ await handleSignal(msg.from, msg); }catch(e){ console.error('handleSignal error', e); }
+    // remove message after handle
+    try{ await remove(ref(db, `rooms/${roomId}/signals/${me.uid}/${key}`)); }catch(e){}
+  });
 }
 
-// create offer -> push to target
+// create peer and send offer (push) - if no localStream we still create pc without tracks
 async function createOffer(peerUid, peerName){
-  if(!localStream) return;
+  if(pcs[peerUid]) return;
   const pc = new RTCPeerConnection(iceServers);
   pcs[peerUid] = pc;
 
-  // ensure tile early (avoid flicker)
   ensureTile(peerUid, peerName);
 
-  // add local tracks
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  // add local tracks if present
+  if(localStream){
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
 
-  pc.ontrack = e => {
+  pc.ontrack = e=>{
     const stream = e.streams[0];
     const t = ensureTile(peerUid, peerName);
-    if(t.video.srcObject !== stream){
+    if(t && t.video.srcObject !== stream){
       t.video.srcObject = stream;
-      t.video.style.display = t.camState ? 'block' : 'none';
-      t.avatar.style.display = t.camState ? 'none' : 'flex';
-      startVAD(stream, peerUid);
+      // if participant's cam flag true, display video; else keep avatar
+      if(t.cam) { t.video.style.display = 'block'; t.avatar.style.display='none'; }
+      startVADFor(peerUid, stream, false);
     }
   };
 
-  pc.onicecandidate = e => {
+  pc.onicecandidate = e=>{
     if(e.candidate){
-      push(signalsRefFor(peerUid), { from: me.uid, type: 'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
+      push(ref(db, `rooms/${roomId}/signals/${peerUid}`), { from: me.uid, type:'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
     }
   };
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  // push offer
-  await push(signalsRefFor(peerUid), { from: me.uid, type:'offer', sdp: offer.sdp, name: me.displayName });
+  await push(ref(db, `rooms/${roomId}/signals/${peerUid}`), { from: me.uid, type:'offer', sdp: offer.sdp, name: me.displayName });
 }
 
 // handle incoming messages
 async function handleSignal(fromUid, msg){
   if(msg.type === 'offer'){
-    // create pc if not exist
     if(!pcs[fromUid]){
       const pc = new RTCPeerConnection(iceServers);
       pcs[fromUid] = pc;
       ensureTile(fromUid, msg.name);
-      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-      pc.ontrack = e => {
+      // add local tracks if exists
+      if(localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      pc.ontrack = e=>{
         const stream = e.streams[0];
         const t = ensureTile(fromUid, msg.name);
-        if(t.video.srcObject !== stream){
+        if(t && t.video.srcObject !== stream){
           t.video.srcObject = stream;
-          t.video.style.display = t.camState ? 'block' : 'none';
-          t.avatar.style.display = t.camState ? 'none' : 'flex';
-          startVAD(stream, fromUid);
+          if(t.cam) { t.video.style.display='block'; t.avatar.style.display='none'; }
+          startVADFor(fromUid, stream, false);
         }
       };
-      pc.onicecandidate = e => {
-        if(e.candidate) push(signalsRefFor(fromUid), { from: me.uid, type:'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
+      pc.onicecandidate = e=>{
+        if(e.candidate) push(ref(db, `rooms/${roomId}/signals/${fromUid}`), { from: me.uid, type:'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
       };
     }
     const pc = pcs[fromUid];
-    await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+    await pc.setRemoteDescription({ type:'offer', sdp: msg.sdp });
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    await push(signalsRefFor(fromUid), { from: me.uid, type:'answer', sdp: answer.sdp });
+    await push(ref(db, `rooms/${roomId}/signals/${fromUid}`), { from: me.uid, type:'answer', sdp: answer.sdp });
   } else if(msg.type === 'answer'){
     const pc = pcs[fromUid];
     if(pc) await pc.setRemoteDescription({ type:'answer', sdp: msg.sdp });
@@ -334,143 +312,239 @@ async function handleSignal(fromUid, msg){
   }
 }
 
-function closePeer(peerUid){
-  if(pcs[peerUid]) try{ pcs[peerUid].close(); }catch(e){}
-  delete pcs[peerUid];
-  removeTile(peerUid);
+function closePeer(uid){
+  if(pcs[uid]) try{ pcs[uid].close(); }catch(e){}
+  delete pcs[uid];
+  removeTile(uid);
   relayout();
 }
 
-// toggle mic/cam local + update participant node
-muteBtn.onclick = () => {
-  if(!localStream) return;
-  const t = localStream.getAudioTracks()[0];
-  if(!t) return;
-  t.enabled = !t.enabled;
-  muteBtn.innerText = t.enabled ? 'MIC' : 'MIC OFF';
-  set(ref(db,`rooms/${roomId}/participants/${me.uid}/mic`), t.enabled).catch(()=>{});
-};
-
-camBtn.onclick = () => {
-  if(!localStream) return;
-  const t = localStream.getVideoTracks()[0];
-  if(!t) return;
-  t.enabled = !t.enabled;
-  camBtn.innerText = t.enabled ? 'CAM' : 'CAM OFF';
-  const tile = tiles[me.uid];
-  if(tile){
-    tile.video.style.display = t.enabled ? 'block' : 'none';
-    tile.avatar.style.display = t.enabled ? 'none' : 'flex';
-  }
-  set(ref(db,`rooms/${roomId}/participants/${me.uid}/cam`), t.enabled).catch(()=>{});
-};
-
-// screen share simple replaceTrack (prompt)
-screenBtn.onclick = async () => {
-  if(!navigator.mediaDevices.getDisplayMedia) return alert('Trình duyệt không hỗ trợ share screen');
+// update my participant node cam/mic
+async function updateMyPresence(cam, mic){
   try{
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video:true });
-    const screenTrack = screenStream.getVideoTracks()[0];
-    // replace local video sender tracks
+    await set(ref(db, `rooms/${roomId}/participants/${me.uid}`), { name: me.displayName, cam: !!cam, mic: !!mic, joinedAt: Date.now() });
+    // onDisconnect already set in join
+  }catch(e){ console.warn('update presence failed', e); }
+}
+
+// enable device permissions (explicit button) - will request both
+enablePermBtn.onclick = async ()=>{
+  // attempt to get both mic and cam
+  const result = await tryGetMedia({ video:true, audio:true });
+  if(result.ok){
+    // attach stream and update flags
+    localStream = result.stream;
+    localCamEnabled = true;
+    localMicEnabled = true;
+    permissionDeniedCam = false; permissionDeniedMic = false;
+    // attach local stream to our tile
+    const t = ensureTile(me.uid, me.displayName);
+    t.video.srcObject = localStream;
+    t.video.style.display = 'block'; t.avatar.style.display='none';
+    startVADFor(me.uid, localStream, true);
+    // update DB presence
+    updateMyPresence(true, true);
+    // create offers if participants exist
+    // we already create offers on participant join; but now add tracks to existing pc senders
     Object.values(pcs).forEach(pc => {
-      pc.getSenders().forEach(s => {
-        if(s.track && s.track.kind === 'video') try{ s.replaceTrack(screenTrack); }catch(e){}
-      });
+      const senders = pc.getSenders().filter(s => s.track && s.track.kind === 'video');
+      const localVideoTrack = localStream.getVideoTracks()[0];
+      if(localVideoTrack && senders.length) {
+        senders.forEach(s => { try{ s.replaceTrack(localVideoTrack); }catch(e){} });
+      } else if(localVideoTrack){
+        // no sender? try addTrack (some browsers may require renegotiation)
+        try{ pc.addTrack(localVideoTrack, localStream); }catch(e){}
+      }
+      const audioSenders = pc.getSenders().filter(s => s.track && s.track.kind === 'audio');
+      const localAudioTrack = localStream.getAudioTracks()[0];
+      if(localAudioTrack && audioSenders.length){
+        audioSenders.forEach(s => { try{ s.replaceTrack(localAudioTrack); }catch(e){} });
+      } else if(localAudioTrack){
+        try{ pc.addTrack(localAudioTrack, localStream); }catch(e){}
+      }
     });
-    // local preview
-    const tile = tiles[me.uid];
-    if(tile){ tile.video.srcObject = screenStream; tile.avatar.style.display='none'; }
-    screenTrack.onended = () => {
-      // revert to local camera
-      const camTrack = localStream.getVideoTracks()[0];
-      Object.values(pcs).forEach(pc => {
-        pc.getSenders().forEach(s => {
-          if(s.track && s.track.kind === 'video') try{ s.replaceTrack(camTrack); }catch(e){}
-        });
-      });
-      if(tile){ tile.video.srcObject = localStream; tile.avatar.style.display = camTrack.enabled ? 'none' : 'flex'; }
-    };
-  }catch(e){ console.warn(e); alert('Share screen thất bại: '+e.message); }
+    // ensure presence node uses onDisconnect (if not set)
+    try{ onDisconnect(ref(db, `rooms/${roomId}/participants/${me.uid}`)).remove(); }catch(e){}
+    // update buttons UI
+    updateControlButtons();
+  } else {
+    // permission denied or error - set flags accordingly, but don't kick out
+    const err = result.error;
+    console.warn('Media request failed', err);
+    if(err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')){
+      // user denied; for cameras we cannot differentiate easily audio vs video, so attempt each separately
+      const camTry = await tryGetMedia({ video:true });
+      permissionDeniedCam = !camTry.ok && camTry.error && (camTry.error.name === 'NotAllowedError' || camTry.error.name === 'PermissionDeniedError');
+      const micTry = await tryGetMedia({ audio:true });
+      permissionDeniedMic = !micTry.ok && micTry.error && (micTry.error.name === 'NotAllowedError' || micTry.error.name === 'PermissionDeniedError');
+    }
+    // update presence to reflect no cam/mic
+    localStream = null;
+    localCamEnabled = false;
+    localMicEnabled = false;
+    updateMyPresence(false, false);
+    updateControlButtons();
+  }
+};
+
+// initial attempt to get media but tolerant: if denied, do not leave room
+async function initialMediaAcquire(){
+  // try to get both but tolerate fail
+  const res = await tryGetMedia({ video:true, audio:true });
+  if(res.ok){
+    localStream = res.stream;
+    localCamEnabled = true; localMicEnabled = true;
+  } else {
+    // if combined fails, try each separately to determine which denied
+    const camRes = await tryGetMedia({ video:true });
+    localCamEnabled = camRes.ok;
+    const micRes = await tryGetMedia({ audio:true });
+    localMicEnabled = micRes.ok;
+    if(camRes.ok) localStream = camRes.stream;
+    else if(micRes.ok) localStream = micRes.stream;
+    else localStream = null;
+    permissionDeniedCam = camRes.error && (camRes.error.name === 'NotAllowedError' || camRes.error.name === 'PermissionDeniedError');
+    permissionDeniedMic = micRes.error && (micRes.error.name === 'NotAllowedError' || micRes.error.name === 'PermissionDeniedError');
+  }
+  // create local tile even if no stream
+  const t = ensureTile(me.uid, me.displayName);
+  if(localStream){
+    t.video.srcObject = localStream;
+    t.video.style.display = localCamEnabled ? 'block' : 'none';
+    t.avatar.style.display = localCamEnabled ? 'none' : 'flex';
+    if(localMicEnabled) startVADFor(me.uid, localStream, true);
+  } else {
+    t.video.style.display = 'none'; t.avatar.style.display = 'flex';
+  }
+  updateControlButtons();
+}
+
+// update control buttons UI (colors/disabled states)
+function updateControlButtons(){
+  // mic button
+  if(permissionDeniedMic){
+    muteBtn.classList.add('no-perm'); muteBtn.classList.remove('dim');
+    muteBtn.innerText = 'MIC';
+    muteBtn.disabled = true;
+  }else{
+    muteBtn.disabled = false;
+    if(localMicEnabled){
+      muteBtn.classList.remove('dim'); muteBtn.innerText = 'MIC';
+    } else {
+      muteBtn.classList.add('dim'); muteBtn.innerText = 'MIC OFF';
+    }
+  }
+  // cam button
+  if(permissionDeniedCam){
+    camBtn.classList.add('no-perm'); camBtn.classList.remove('dim');
+    camBtn.innerText = 'CAM';
+    camBtn.disabled = true;
+  }else{
+    camBtn.disabled = false;
+    if(localCamEnabled){
+      camBtn.classList.remove('dim'); camBtn.innerText = 'CAM';
+    } else {
+      camBtn.classList.add('dim'); camBtn.innerText = 'CAM OFF';
+    }
+  }
+}
+
+// toggle mic - if permission not granted, ask user to enable via EnablePerm button
+muteBtn.onclick = async ()=>{
+  if(permissionDeniedMic){ alert('Bạn chưa cấp quyền Micro. Nhấn ⚙️ để bật quyền.'); return; }
+  if(!localStream){
+    // ask for mic permission specifically
+    const r = await tryGetMedia({ audio:true });
+    if(r.ok){ localStream = r.stream; localMicEnabled = true; if(r.stream.getVideoTracks().length) localCamEnabled = true; updateMyPresence(localCamEnabled, localMicEnabled); const t = ensureTile(me.uid, me.displayName); t.video.srcObject = localStream; startVADFor(me.uid, localStream, true); updateControlButtons(); return; }
+    else { permissionDeniedMic = r.error && (r.error.name === 'NotAllowedError' || r.error.name === 'PermissionDeniedError'); updateControlButtons(); return; }
+  }
+  // toggle audio track if exists
+  const at = localStream.getAudioTracks()[0];
+  if(at){
+    at.enabled = !at.enabled; localMicEnabled = at.enabled;
+    updateMyPresence(localCamEnabled, localMicEnabled);
+    if(localMicEnabled) startVADFor(me.uid, localStream, true);
+    else { if(vadIntervals[me.uid]) { cancelAnimationFrame(vadIntervals[me.uid]); delete vadIntervals[me.uid]; } muteBtn.classList.remove('mic-active'); }
+    updateControlButtons();
+  } else {
+    // attempt to get audio
+    const r = await tryGetMedia({ audio:true });
+    if(r.ok){ localStream = localStream ? new MediaStream([...localStream.getTracks(), ...r.stream.getAudioTracks()]) : r.stream; localMicEnabled = true; updateMyPresence(localCamEnabled, localMicEnabled); startVADFor(me.uid, localStream, true); updateControlButtons(); }
+    else { permissionDeniedMic = r.error && (r.error.name === 'NotAllowedError' || r.error.name === 'PermissionDeniedError'); updateControlButtons(); }
+  }
+};
+
+// toggle cam - similar to mic
+camBtn.onclick = async ()=>{
+  if(permissionDeniedCam){ alert('Bạn chưa cấp quyền Camera. Nhấn ⚙️ để bật quyền.'); return; }
+  if(!localStream){
+    const r = await tryGetMedia({ video:true });
+    if(r.ok){ localStream = r.stream; localCamEnabled = true; if(r.stream.getAudioTracks().length) localMicEnabled = true; updateMyPresence(localCamEnabled, localMicEnabled); const t = ensureTile(me.uid, me.displayName); t.video.srcObject = localStream; t.video.style.display='block'; t.avatar.style.display='none'; updateControlButtons(); return; }
+    else { permissionDeniedCam = r.error && (r.error.name === 'NotAllowedError' || r.error.name === 'PermissionDeniedError'); updateControlButtons(); return; }
+  }
+  const vt = localStream.getVideoTracks()[0];
+  if(vt){
+    vt.enabled = !vt.enabled; localCamEnabled = vt.enabled;
+    const t = tiles[me.uid];
+    if(t){ t.video.style.display = localCamEnabled ? 'block' : 'none'; t.avatar.style.display = localCamEnabled ? 'none' : 'flex'; }
+    updateMyPresence(localCamEnabled, localMicEnabled);
+    updateControlButtons();
+  } else {
+    const r = await tryGetMedia({ video:true });
+    if(r.ok){ if(localStream) { r.stream.getVideoTracks().forEach(tr=> localStream.addTrack(tr)); } else localStream = r.stream; localCamEnabled = true; updateMyPresence(localCamEnabled, localMicEnabled); const t = tiles[me.uid]; if(t){ t.video.srcObject = localStream; t.video.style.display='block'; t.avatar.style.display='none'; } updateControlButtons(); } else { permissionDeniedCam = r.error && (r.error.name === 'NotAllowedError' || r.error.name === 'PermissionDeniedError'); updateControlButtons(); }
+  }
 };
 
 // leave
-leaveBtn.onclick = async () => {
-  try{ await remove(ref(db,`rooms/${roomId}/participants/${me.uid}`)); }catch(e){}
+leaveBtn.onclick = async ()=>{
+  try{ await remove(ref(db, `rooms/${roomId}/participants/${me.uid}`)); }catch(e){}
   Object.keys(pcs).forEach(k=>closePeer(k));
   if(localStream) localStream.getTracks().forEach(t=>t.stop());
-  location.href = 'index.html';
+  location.href='index.html';
 };
 
-// INVITE PANEL: load friends, build list
-inviteBtn.onclick = async () => {
-  if(invitePanel.style.display === 'block'){ invitePanel.style.display='none'; invitePanel.setAttribute('aria-hidden','true'); return; }
-  invitePanel.innerHTML = '<div style="font-weight:700;margin-bottom:8px">Mời bạn vào phòng</div>';
-  invitePanel.style.display='block'; invitePanel.setAttribute('aria-hidden','false');
-  // fetch friends of me
-  const snap = await get(ref(db, `users/${me.uid}/friends`));
-  const list = snap.val() || {};
-  const keys = Object.keys(list);
-  if(keys.length === 0){ invitePanel.innerHTML += '<div class="muted">Bạn chưa có bạn bè</div>'; return; }
-  for(const fid of keys){
-    try{
-      const usnap = await get(ref(db, `users/${fid}`));
-      const u = usnap.val();
-      if(!u) continue;
-      const row = elt('div',{class:'invFriend'});
-      row.innerHTML = `<div>${u.displayName} (${u.username})</div>`;
-      const b = elt('button',{}, 'Mời');
-      b.onclick = async ()=>{
-        const k = 'i_'+Math.random().toString(36).slice(2,9);
-        await set(ref(db, `invites/${fid}/${k}`), { from: me.uid, fromName: me.displayName, room: roomId, time: Date.now() });
-        b.innerText = 'Đã gửi'; b.disabled = true;
-      };
-      row.appendChild(b);
-      invitePanel.appendChild(row);
-    }catch(e){ console.warn(e); }
-  }
-};
-
-// grid toggle for user control
-toggleGridBtn.onclick = ()=>{ usingGrid = !usingGrid; if(usingGrid) relayout(); else { stage.style.gridTemplateColumns = 'repeat(auto-fit,minmax(160px,1fr))'; } };
-
-// AUTH & init flow
+// initial auth and init
 let firstCheck = true;
-onAuthStateChanged(auth, async user => {
+onAuthStateChanged(auth, async user=>{
   if(user){
     firstCheck = false;
     const uid = user.uid;
-    // load profile once
     const usnap = await get(ref(db, `users/${uid}`));
     const data = usnap.val();
-    if(!data){ alert('Profile not found'); location.href = 'login.html'; return; }
-    me = { uid, username: data.username, displayName: data.displayName };
-    meInfo.innerText = me.displayName;
-    meName.innerText = me.displayName;
-    // init media and join
-    try{
-      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    }catch(e){
-      alert('Cần quyền Camera/Mic để gọi');
-      location.href = 'index.html';
-      return;
-    }
-    createLocalTile();
-    // ensure roomId
-    if(!roomId){ roomId = prompt('Nhập Room ID:'); if(!roomId) { location.href='index.html'; return; } }
+    if(!data){ alert('Không tìm thấy profile'); location.href='login.html'; return; }
+    me = { uid, username:data.username, displayName:data.displayName };
+    meInfo.innerText = me.displayName; meName.innerText = me.displayName;
+    // set room title
+    if(!roomId){ roomId = prompt('Nhập Room ID'); if(!roomId) { location.href = 'index.html'; return; } }
     roomTitle.innerText = 'Room: ' + roomId;
-    // join and start watching (after user loaded)
-    await joinRoom();
+    // attempt to acquire media but tolerant
+    await initialMediaAcquire();
+    // join DB participants
+    await joinRoomNode();
+    // listen participants & signals
+    watchParticipants();
+    listenSignalsForMyself();
   } else {
-    if(!firstCheck) {
-      location.href = 'login.html';
-    }
+    if(!firstCheck) location.href='login.html';
   }
 });
 
-// Cleanup on unload: stop tracks
-window.addEventListener('beforeunload', ()=>{
-  try{ if(localStream) localStream.getTracks().forEach(t=>t.stop()); }catch(e){}
-});
+// helper handleSignal / peers functions already defined above
+
+// small utilities: invite button opens friend list (simple prompt)
+inviteBtn.onclick = async ()=>{
+  // fetch friends list
+  if(!me) return alert('Chưa đăng nhập');
+  const snap = await get(ref(db, `users/${me.uid}/friends`));
+  const f = snap.val() || {};
+  const keys = Object.keys(f);
+  if(!keys.length) return alert('Bạn chưa có bạn bè');
+  const list = keys.map(k => k).join('\n');
+  const to = prompt('Nhập uid người muốn mời (từ danh sách):\n' + list);
+  if(!to) return;
+  await push(ref(db, `invites/${to}`), { from: me.uid, fromName: me.displayName, room: roomId, time: Date.now() });
+  alert('Đã gửi invite');
+};
 
 </script>
 </body>
