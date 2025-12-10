@@ -112,9 +112,38 @@ onAuthStateChanged(auth, async user => {
     const data = snap.val();
     
     if(!data){
-      meDisplay.innerText='Lỗi: Không tìm thấy thông tin người dùng';
-      console.error('User data not found for uid:', uid);
-      return;
+      // No user profile found. Try to create a minimal profile automatically.
+      console.warn('User data not found for uid:', uid, '— creating default profile.');
+      meDisplay.innerText = 'Tạo hồ sơ người dùng...';
+      const email = (user && user.email) ? user.email : '';
+      const derivedUsername = email ? String(email).split('@')[0] : ('user_' + uid.slice(0,6));
+      const derivedDisplay = (user && user.displayName) ? user.displayName : derivedUsername;
+      try {
+        await set(ref(db, `users/${uid}`), {
+          username: derivedUsername,
+          displayName: derivedDisplay,
+          email: email,
+          friends: {}
+        });
+        // Reload the node to get consistent data
+        const newSnap = await get(ref(db, `users/${uid}`));
+        const newData = newSnap.val();
+        if(!newData){
+          throw new Error('Failed to create user record');
+        }
+        me = { uid, username: newData.username, displayName: newData.displayName };
+        meDisplay.innerText = me.displayName;
+        btnLogout.style.display='';
+        btnCreateRoom.disabled=false;
+        renderProfile(newData);
+        watchFriends();
+        watchInbox();
+      } catch(err){
+        console.error('Error creating user profile:', err);
+        meDisplay.innerText='Lỗi: Không thể tạo hồ sơ người dùng';
+        profile.innerHTML = '<div class="small">Vui lòng kiểm tra cấu hình Firebase hoặc tạo hồ sơ thủ công trong Firebase Console.</div>';
+        return;
+      }
     }
     
     me = { uid, username: data.username, displayName: data.displayName };
