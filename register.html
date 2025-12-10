@@ -2,93 +2,86 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MTMET — Đăng ký</title>
 <style>
-:root{
-  --bg:#0b1b2b;--surface:#101820;--accent:#2196f3;
-  --text:#e8eaed;--muted:#9fb0bd;--radius:12px;
-}
-body{
-  margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial;
-  display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text);
-}
-.card{
-  width:320px;background:var(--surface);padding:20px;border-radius:var(--radius);
-  box-shadow:0 8px 40px rgba(0,0,0,0.5);
-}
-h2{margin:0 0 12px;font-weight:700}
-input{
-  width:100%;padding:10px;border-radius:var(--radius);
-  border:1px solid #1e2a33;background:#0b1115;color:var(--text);
-  margin-bottom:12px;
-}
-button{
-  width:100%;padding:10px;border-radius:var(--radius);border:none;
-  background:var(--accent);color:white;font-size:15px;cursor:pointer;font-weight:600;
-}
-button:hover{opacity:0.9}
-.small{
-  margin-top:12px;font-size:13px;text-align:center;color:var(--muted);
-  cursor:pointer
-}
-.small:hover{color:var(--accent)}
+:root{--bg:#0b1b2b;--surface:#101820;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed;--danger:#b71c1c;--card-radius:12px}
+body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+.card{background:var(--surface);padding:24px;border-radius:var(--card-radius);box-shadow:0 8px 40px rgba(0,0,0,0.5);width:320px;max-width:90%}
+h2{margin-top:0;margin-bottom:16px;text-align:center}
+input{width:100%;padding:10px;margin-bottom:12px;border-radius:8px;border:1px solid #17202a;background:#0b1115;color:var(--text)}
+button{width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+button:hover{opacity:0.95}
+.small{font-size:13px;color:var(--muted);text-align:center;margin-top:12px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.error{color:var(--danger);font-size:13px;margin-bottom:8px}
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h2>Đăng ký</h2>
-  <input id="username" placeholder="Tên đăng nhập">
-  <input id="displayName" placeholder="Tên hiển thị">
-  <input id="password" type="password" placeholder="Mật khẩu">
-  <input id="password2" type="password" placeholder="Nhập lại mật khẩu">
-  <button id="btnRegister">Tạo tài khoản</button>
-  <div class="small" onclick="location.href='login.html'">Đã có tài khoản? Đăng nhập</div>
+  <h2>Đăng ký MTMET</h2>
+  <div id="errorMsg" class="error"></div>
+  <input type="text" id="username" placeholder="Tên người dùng" required>
+  <input type="text" id="displayName" placeholder="Tên hiển thị" required>
+  <input type="password" id="password" placeholder="Mật khẩu" required>
+  <button id="btnRegister">Đăng ký</button>
+  <div class="small">Đã có tài khoản? <a href="login.html">Đăng nhập</a></div>
 </div>
 
 <script src="firebase-config.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-const usernameEl = document.getElementById('username');
-const displayNameEl = document.getElementById('displayName');
-const passwordEl = document.getElementById('password');
-const password2El = document.getElementById('password2');
+const usernameInput = document.getElementById('username');
+const displayNameInput = document.getElementById('displayName');
+const passwordInput = document.getElementById('password');
 const btnRegister = document.getElementById('btnRegister');
+const errorMsg = document.getElementById('errorMsg');
 
 btnRegister.onclick = async ()=>{
-  const username = usernameEl.value.trim();
-  const displayName = displayNameEl.value.trim();
-  const pw = passwordEl.value.trim();
-  const pw2 = password2El.value.trim();
-
-  if(!username || !displayName || !pw) return alert("Nhập đủ thông tin");
-  if(pw !== pw2) return alert("Mật khẩu không khớp");
-
-  const fakeEmail = username + "@mtmet.com";
+  const username = usernameInput.value.trim();
+  const displayName = displayNameInput.value.trim();
+  const password = passwordInput.value.trim();
+  if(!username || !password || !displayName){ errorMsg.innerText='Vui lòng nhập đầy đủ'; return; }
 
   try{
-    const userCred = await createUserWithEmailAndPassword(auth, fakeEmail, pw);
-    const uid = userCred.user.uid;
+    // Kiểm tra username đã tồn tại chưa
+    const usersSnap = await get(ref(db,'users'));
+    const users = usersSnap.val() || {};
+    for(const uid in users){
+      if(users[uid].username.toLowerCase() === username.toLowerCase()){
+        errorMsg.innerText = 'Username đã tồn tại';
+        return;
+      }
+    }
+
+    // Tạo email giả lập
+    const fakeEmail = username+'@mtmet.com';
+    const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
+    const uid = userCredential.user.uid;
+
+    // Lưu thông tin vào Realtime Database
     await set(ref(db,'users/'+uid), {
       username,
       displayName,
       createdAt: Date.now()
     });
-    alert("Tạo tài khoản thành công!");
-    location.href = "index.html";
+
+    alert('Đăng ký thành công!');
+    location.href='login.html';
   }catch(e){
-    alert(e.message);
+    console.error(e);
+    errorMsg.innerText = 'Lỗi: '+(e.message||e);
   }
 };
 </script>
-
 </body>
 </html>

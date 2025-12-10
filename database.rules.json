@@ -1,24 +1,21 @@
 {
   "rules": {
-    "usernames": {
-      ".read": true,
-      ".write": false
-    },
     "users": {
-      ".read": true,
-      ".write": "auth != null",
       "$uid": {
-        ".read": true,
-        ".write": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "friends": {
+          "$friendUid": {
+            ".read": "auth != null && (auth.uid === $uid || auth.uid === $friendUid)",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
       }
     },
     "friendRequests": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null",
-        "$fromUid": {
-          ".write": "auth != null"
-        }
+        ".write": "auth != null"
       }
     },
     "invites": {
@@ -32,23 +29,18 @@
         ".read": "auth != null",
         ".write": "auth != null",
         "participants": {
-          ".read": "auth != null",
-          ".write": "auth != null",
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid"
+            ".write": "auth != null && auth.uid === $uid",
+            ".read": "auth != null"
           }
         },
         "signals": {
-          ".read": "auth != null",
-          ".write": "auth != null",
-          "$fromUid": {
-            "$toUid": {
-              ".write": "auth != null && auth.uid === $fromUid"
-            }
+          "$signalId": {
+            ".write": "auth != null",
+            ".read": "auth != null"
           }
         }
       }
     }
   }
 }
-

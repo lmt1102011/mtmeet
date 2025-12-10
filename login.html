@@ -2,75 +2,75 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MTMET — Đăng nhập</title>
 <style>
-:root{
-  --bg:#0b1b2b;--surface:#101820;--accent:#2196f3;
-  --text:#e8eaed;--muted:#9fb0bd;--radius:12px;
-}
-body{
-  margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial;
-  display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text);
-}
-.card{
-  width:320px;background:var(--surface);padding:20px;border-radius:var(--radius);
-  box-shadow:0 8px 40px rgba(0,0,0,0.5);
-}
-h2{margin:0 0 12px;font-weight:700}
-input{
-  width:100%;padding:10px;border-radius:var(--radius);
-  border:1px solid #1e2a33;background:#0b1115;color:var(--text);
-  margin-bottom:12px;
-}
-button{
-  width:100%;padding:10px;border-radius:var(--radius);border:none;
-  background:var(--accent);color:white;font-size:15px;cursor:pointer;font-weight:600;
-}
-button:hover{opacity:0.9}
-.small{
-  margin-top:12px;font-size:13px;text-align:center;color:var(--muted);
-  cursor:pointer
-}
-.small:hover{color:var(--accent)}
+:root{--bg:#0b1b2b;--surface:#101820;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed;--danger:#b71c1c;--card-radius:12px}
+body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+.card{background:var(--surface);padding:24px;border-radius:var(--card-radius);box-shadow:0 8px 40px rgba(0,0,0,0.5);width:320px;max-width:90%}
+h2{margin-top:0;margin-bottom:16px;text-align:center}
+input{width:100%;padding:10px;margin-bottom:12px;border-radius:8px;border:1px solid #17202a;background:#0b1115;color:var(--text)}
+button{width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+button:hover{opacity:0.95}
+.small{font-size:13px;color:var(--muted);text-align:center;margin-top:12px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.error{color:var(--danger);font-size:13px;margin-bottom:8px}
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h2>Đăng nhập</h2>
-  <input id="username" placeholder="Tên đăng nhập">
-  <input id="password" type="password" placeholder="Mật khẩu">
+  <h2>Đăng nhập MTMET</h2>
+  <div id="errorMsg" class="error"></div>
+  <input type="text" id="username" placeholder="Tên người dùng" required>
+  <input type="password" id="password" placeholder="Mật khẩu" required>
   <button id="btnLogin">Đăng nhập</button>
-  <div class="small" onclick="location.href='register.html'">Chưa có tài khoản? Đăng ký</div>
+  <div class="small">Chưa có tài khoản? <a href="register.html">Đăng ký</a></div>
 </div>
 
 <script src="firebase-config.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
+const db = getDatabase(app);
 
-const usernameEl = document.getElementById('username');
-const passwordEl = document.getElementById('password');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
 const btnLogin = document.getElementById('btnLogin');
+const errorMsg = document.getElementById('errorMsg');
 
 btnLogin.onclick = async ()=>{
-  const username = usernameEl.value.trim();
-  const pw = passwordEl.value.trim();
-  if(!username || !pw) return alert("Nhập đủ thông tin");
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value.trim();
+  if(!username || !password){ errorMsg.innerText='Vui lòng nhập đầy đủ'; return; }
 
-  const fakeEmail = username + "@mtmet.com"; // Vì Auth cần email
-  try {
-    await signInWithEmailAndPassword(auth, fakeEmail, pw);
-    location.href = "index.html";
-  } catch(e) {
-    alert("Sai tài khoản hoặc mật khẩu!");
+  try{
+    // Lấy user UID từ database theo username
+    const usersSnap = await get(ref(db,'users'));
+    const users = usersSnap.val() || {};
+    let foundUid = null;
+    for(const [uid,u] of Object.entries(users)){
+      if(u.username && u.username.toLowerCase()===username.toLowerCase()){
+        foundUid = uid; break;
+      }
+    }
+    if(!foundUid){ errorMsg.innerText='Không tìm thấy tài khoản'; return; }
+
+    // login bằng email giả lập username@mtmet.com
+    const fakeEmail = username+'@mtmet.com';
+    await signInWithEmailAndPassword(auth, fakeEmail, password);
+    // thành công → chuyển về index.html
+    location.href='index.html';
+  }catch(e){
+    console.error(e);
+    errorMsg.innerText = 'Đăng nhập thất bại: '+(e.message||e);
   }
 };
 </script>
-
 </body>
 </html>
