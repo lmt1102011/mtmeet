@@ -62,7 +62,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 <div id="stageWrap"><div id="stage" role="region" aria-live="polite"></div></div>
 
 <div class="controls" role="toolbar" aria-label="call controls">
-  <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">⚙️</button>
+  <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">SET</button>
   <button id="muteBtn" class="controlBtn dim" title="Toggle mic">MIC</button>
   <button id="camBtn" class="controlBtn dim" title="Toggle cam">CAM</button>
   <button id="leaveBtn" class="controlBtn danger" title="Leave">✖</button>
@@ -164,7 +164,7 @@ camBtn.onclick = ()=>{
   localCamEnabled=!localCamEnabled;
   localStream.getVideoTracks()[0].enabled=localCamEnabled;
 };
-leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); location.href="/"; };
+leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); location.href="index.html"; };
 
 requestPermBtn.onclick = requestPermissions;
 
