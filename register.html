@@ -29,7 +29,7 @@ a{color:#2196f3;text-decoration:none;display:block;text-align:center;margin-top:
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged, deleteUser } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, get, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getDatabase, ref, get, set, runTransaction, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -62,20 +62,38 @@ btnRegister.onclick = async ()=>{
     
     console.log('✓ Auth user created:', uid);
 
-    // Save user data to database
-    await set(ref(db, `users/${uid}`), {
-      username: u,
-      displayName: d,
-      email: email,
-      friends: {}
-    });
-    // Also write a public username index for quick lookup during login
+    // Attempt to reserve the username atomically using a transaction on usernameIndex/{u}
+    const idxRef = ref(db, `usernameIndex/${u}`);
     try{
-      await set(ref(db, `usernameIndex/${u}`), { uid: uid, email: email });
-      console.log('✓ Username index written');
+      const txResult = await runTransaction(idxRef, current => {
+        if(current === null) return { uid: uid, email: email };
+        return; // abort transaction (username taken)
+      }, { applyLocally: false });
+
+      if(!txResult.committed){
+        // Username was taken concurrently — roll back created auth user
+        try{ await deleteUser(userCred.user); }catch(_){/* ignore */}
+        msg.style.color='#f44'; msg.innerText='Tên đăng nhập đã tồn tại (đã bị người khác lấy)';
+        return;
+      }
+
+      // Transaction succeeded — now write the user profile
+      await set(ref(db, `users/${uid}`), {
+        username: u,
+        displayName: d,
+        email: email,
+        friends: {}
+      });
+      console.log('✓ Username reserved and user profile written');
+
     }catch(ixErr){
-      console.warn('Could not write usernameIndex:', ixErr);
-      // Roll back auth user to avoid orphaned account
+      console.warn('Error reserving username or writing profile:', ixErr);
+      // Try best-effort cleanup: remove usernameIndex if it points to this uid, and delete auth user
+      try{
+        const snap = await get(idxRef);
+        const val = snap.val();
+        if(val && val.uid === uid){ await remove(idxRef); }
+      }catch(_){/* ignore cleanup errors */}
       try{ await deleteUser(userCred.user); console.log('Rolled back auth user'); }catch(delErr){ console.error('Failed to delete orphaned auth user:', delErr); }
       throw ixErr;
     }

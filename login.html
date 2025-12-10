@@ -29,7 +29,7 @@ a{color:#2196f3;text-decoration:none;display:block;text-align:center;margin-top:
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getDatabase, ref, set, get, runTransaction } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -53,24 +53,47 @@ btnLogin.onclick = async ()=>{
     const idxSnap = await get(ref(db, `usernameIndex/${u}`));
     const idx = idxSnap.val();
     let userEmail = null;
-    let displayName = null;
-    if(!idx){
-      msg.style.color='#f44';
-      msg.innerText='Tên đăng nhập không tồn tại';
-      return;
+    if(idx && idx.email){
+      userEmail = idx.email;
+      try{
+        await signInWithEmailAndPassword(auth, userEmail, p);
+      }catch(err){
+        // If sign-in fails, rethrow to outer catch for error message handling
+        throw err;
+      }
+    } else {
+      // usernameIndex missing — attempt direct email sign-in using the app-local email pattern
+      userEmail = u + '@app.local';
+      try{
+        const userCred = await signInWithEmailAndPassword(auth, userEmail, p);
+        // After successful sign-in, try to atomically create usernameIndex if still missing
+        const idxRef = ref(db, `usernameIndex/${u}`);
+        try{
+          await runTransaction(idxRef, current => {
+            if(current === null) return { uid: userCred.user.uid, email: userEmail };
+            return; // abort if already exists
+          }, { applyLocally: false });
+        }catch(txErr){
+          console.warn('Could not write usernameIndex after login:', txErr);
+        }
+      }catch(err){
+        // If sign-in with constructed email fails with user-not-found, show username not exist
+        if(err && (err.code === 'auth/user-not-found' || (err.message && err.message.toLowerCase().includes('user-not-found')))){
+          msg.style.color='#f44';
+          msg.innerText='Tên đăng nhập không tồn tại';
+          return;
+        }
+        // otherwise rethrow to outer catch
+        throw err;
+      }
     }
-    userEmail = idx.email;
-    // Optionally we could fetch displayName after auth if needed
-    
-    // Login with email and password
-    await signInWithEmailAndPassword(auth, userEmail, p);
     msg.style.color='#4caf50';
     msg.innerText='Đăng nhập thành công!';
     setTimeout(() => location.href='index.html', 1000);
   } catch(e){
     console.error('Login error:', e);
     msg.style.color='#f44';
-    if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-email') {
+    if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-email' || e.code === 'auth/user-not-found') {
       msg.innerText='Tên đăng nhập hoặc mật khẩu không đúng';
     } else if(e.message && e.message.toLowerCase().includes('permission')) {
       msg.innerText='Lỗi quyền truy cập dữ liệu. Vui lòng kiểm tra cấu hình Firebase.';
