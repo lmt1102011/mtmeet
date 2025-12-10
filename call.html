@@ -83,7 +83,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set, push, onValue, onChildAdded, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getDatabase, ref, set, push, onValue, onChildAdded, remove, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -177,13 +177,27 @@ requestPermBtn.onclick = requestPermissions;
 inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); invitePopup.setAttribute('aria-hidden','false'); loadFriends(); }
 closeInvite.onclick=()=>{ invitePopup.classList.add('hidden'); invitePopup.setAttribute('aria-hidden','true'); }
 async function loadFriends(){
-  friendListDiv.innerHTML='';
+  friendListDiv.innerHTML='<div style="color:#ccc;padding:10px;">Đang tải...</div>';
   try {
+    if (!me || !me.uid) {
+      friendListDiv.innerHTML = '<div style="color:#f44;padding:10px;">Chưa đăng nhập!</div>';
+      return;
+    }
+    
     const friendsRef = ref(db, `users/${me.uid}/friends`);
     const snapshot = await get(friendsRef);
     const friendUids = snapshot.val() || {};
+    const friendKeys = Object.keys(friendUids);
     
-    for (const friendUid of Object.keys(friendUids)) {
+    console.log('Friends found:', friendKeys.length, friendKeys);
+    
+    if (friendKeys.length === 0) {
+      friendListDiv.innerHTML = '<div style="color:#999;padding:10px;">Chưa có bạn bè. Hãy kết bạn trên trang danh sách bạn bè trước!</div>';
+      return;
+    }
+    
+    friendListDiv.innerHTML = '';
+    for (const friendUid of friendKeys) {
       const userRef = ref(db, `users/${friendUid}`);
       const userSnap = await get(userRef);
       const friendData = userSnap.val();
@@ -192,20 +206,26 @@ async function loadFriends(){
       const item = elt('div', {class:'item'});
       const avatar = elt('div', {class:'friendAvatar'}, (friendData.displayName || 'U')[0]);
       const name = elt('div', {}, friendData.displayName || 'Unknown');
-      const btn = elt('button', {class:'inviteBtn'}, 'Invite');
+      const btn = elt('button', {class:'inviteBtn'}, 'Mời');
       
       btn.onclick = async () => {
-        const inviteData = { 
-          from: me.uid, 
-          fromName: me.displayName, 
-          room: new URLSearchParams(location.search).get('room'),
-          time: Date.now() 
-        };
-        const inviteKey = 'i_' + Math.random().toString(36).slice(2,9);
-        await set(ref(db, `invites/${friendUid}/${inviteKey}`), inviteData);
-        btn.classList.add('sent'); 
-        btn.innerText='Sent'; 
-        btn.disabled=true;
+        try {
+          const roomId = new URLSearchParams(location.search).get('room');
+          const inviteData = { 
+            from: me.uid, 
+            fromName: me.displayName, 
+            room: roomId,
+            time: Date.now() 
+          };
+          const inviteKey = 'i_' + Math.random().toString(36).slice(2,9);
+          await set(ref(db, `invites/${friendUid}/${inviteKey}`), inviteData);
+          btn.classList.add('sent'); 
+          btn.innerText='Đã gửi'; 
+          btn.disabled=true;
+        } catch (err) {
+          console.error('Send invite error:', err);
+          alert('Lỗi gửi mời: ' + err.message);
+        }
       };
       
       item.appendChild(avatar);
@@ -215,7 +235,7 @@ async function loadFriends(){
     }
   } catch (e) {
     console.error('Load friends error:', e);
-    friendListDiv.innerHTML = '<div style="color:#999;padding:10px;">Không thể tải danh sách bạn bè</div>';
+    friendListDiv.innerHTML = '<div style="color:#f44;padding:10px;">Lỗi: ' + e.message + '</div>';
   }
 }
 
