@@ -1,6 +1,6 @@
 window.FIREBASE_CONFIG = {
   "apiKey": "AIzaSyAMdKTlUysMHbskT0Asvsrin36ZUyQwhRE",
-  "authDomain": "sungjintrb.firebaseapp.com",
+  "authDomain": "lmt1102011.github.io",
   "databaseURL": "https://sungjintrb-default-rtdb.firebaseio.com",
   "projectId": "sungjintrb",
   "storageBucket": "sungjintrb.firebasestorage.app",
