@@ -255,7 +255,10 @@ function joinRoom(){
     const data = snapshot.val()||{};
     Object.keys(data).forEach(uid=>{
       if(uid===me.uid) return;
-      if(!pcs[uid]) createPeer(uid);
+      if(!pcs[uid]) {
+        const participantName = data[uid]?.name || 'User';
+        createPeer(uid, participantName);
+      }
     });
     Object.keys(tiles).forEach(uid=>{
       if(uid!=='me' && !data[uid]){ tiles[uid].el.remove(); delete tiles[uid]; pcs[uid]?.close(); delete pcs[uid]; }
@@ -270,10 +273,10 @@ function joinRoom(){
   });
 }
 
-function createPeer(uid){
+function createPeer(uid, name){
   const pc = new RTCPeerConnection();
   pcs[uid]=pc;
-  tiles[uid]=createTile(uid,uid);
+  tiles[uid]=createTile(uid, name || uid);
 
   if(localStream) localStream.getTracks().forEach(track=>pc.addTrack(track,localStream));
 
