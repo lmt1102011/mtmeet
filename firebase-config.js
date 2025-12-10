@@ -1,4 +1,3 @@
-// firebase-config.js
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyDAtjOUgMkrZ0FRIaod0QV9b03qZZnlhu0",
   authDomain: "messend-online.firebaseapp.com",

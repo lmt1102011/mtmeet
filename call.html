@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="utf-8"/>
@@ -67,6 +67,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
   <button id="leaveBtn" class="controlBtn danger" title="Leave">✖</button>
 </div>
 
+<!-- Invite Popup -->
 <div id="invitePopup" class="popup hidden" aria-hidden="true">
   <div class="popupContent">
     <div class="popupHeader">
@@ -169,6 +170,7 @@ camBtn.onclick = ()=>{
   localStream.getVideoTracks()[0].enabled=localCamEnabled;
 };
 leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); location.href="index.html"; };
+
 requestPermBtn.onclick = requestPermissions;
 
 inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); invitePopup.setAttribute('aria-hidden','false'); loadFriends(); }
@@ -186,7 +188,7 @@ async function loadFriends(){
     const friendUids = snapshot.val() || {};
     const friendKeys = Object.keys(friendUids);
     if (friendKeys.length === 0) {
-      friendListDiv.innerHTML = '<div style="color:#999;padding:10px;">Chưa có bạn bè</div>';
+      friendListDiv.innerHTML = '<div style="color:#999;padding:10px;">Chưa có bạn bè.</div>';
       return;
     }
     friendListDiv.innerHTML = '';
@@ -200,22 +202,25 @@ async function loadFriends(){
       const name = elt('div', {}, friendData.displayName || 'Unknown');
       const btn = elt('button', {class:'inviteBtn'}, 'Mời');
       btn.onclick = async () => {
-        const roomId = new URLSearchParams(location.search).get('room');
-        const inviteData = { 
-          from: me.uid, 
-          fromName: me.displayName, 
-          room: roomId,
-          time: Date.now() 
-        };
-        const inviteKey = 'i_' + Math.random().toString(36).slice(2,9);
-        await set(ref(db, `invites/${friendUid}/${inviteKey}`), inviteData);
-        btn.classList.add('sent'); 
-        btn.innerText='Đã gửi'; 
-        btn.disabled=true;
+        try {
+          const roomId = new URLSearchParams(location.search).get('room');
+          const inviteData = { 
+            from: me.uid, 
+            fromName: me.displayName, 
+            room: roomId,
+            time: Date.now() 
+          };
+          const inviteKey = 'i_' + Math.random().toString(36).slice(2,9);
+          await set(ref(db, `invites/${friendUid}/${inviteKey}`), inviteData);
+          btn.classList.add('sent'); 
+          btn.innerText='Đã gửi'; 
+          btn.disabled=true;
+        } catch (err) {
+          console.error('Send invite error:', err);
+          alert('Lỗi gửi mời: ' + err.message);
+        }
       };
-      item.appendChild(avatar);
-      item.appendChild(name);
-      item.appendChild(btn);
+      item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
       friendListDiv.appendChild(item);
     }
   } catch (e) {
@@ -225,7 +230,7 @@ async function loadFriends(){
 }
 
 onAuthStateChanged(auth,user=>{
-  if(!user){ location.href="login.html"; return; }
+  if(!user){ location.href="/login.html"; return; }
   me=user;
   meName.innerText=user.displayName||"Me";
   meInfo.innerText=user.uid;
@@ -263,9 +268,23 @@ function createPeer(uid, name){
   pcs[uid]=pc;
   tiles[uid]=createTile(uid, name || uid);
   if(localStream) localStream.getTracks().forEach(track=>pc.addTrack(track,localStream));
-  pc.ontrack = e=>{ tiles[uid].video.srcObject = e.streams[0]; startMicAnalyzer(uid,e.streams[0]); };
-  pc.onicecandidate = e=>{ if(e.candidate){ push(ref(db,'rooms/'+roomId+'/signals'),{from:me.uid,to:uid,type:'candidate',data:e.candidate.toJSON()}); }};
-  pc.createOffer().then(offer=>{ pc.setLocalDescription(offer); push(ref(db,'rooms/'+roomId+'/signals'),{from:me.uid,to:uid,type:'offer',data:offer.toJSON()}); });
+  pc.ontrack = e=>{
+    tiles[uid].video.srcObject = e.streams[0];
+    startMicAnalyzer(uid,e.streams[0]);
+  };
+  pc.onicecandidate = e=>{
+    if(e.candidate){
+      push(ref(db,'rooms/'+roomId+'/signals'),{
+        from:me.uid,to:uid,type:'candidate',data:e.candidate.toJSON()
+      });
+    }
+  };
+  pc.createOffer().then(offer=>{
+    pc.setLocalDescription(offer);
+    push(ref(db,'rooms/'+roomId+'/signals'),{
+      from:me.uid,to:uid,type:'offer',data:offer.toJSON()
+    });
+  });
 }
 
 function handleSignal(from,type,data){
@@ -275,14 +294,18 @@ function handleSignal(from,type,data){
     pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{
       pc.createAnswer().then(answer=>{
         pc.setLocalDescription(answer);
-        push(ref(db,'rooms/'+roomId+'/signals'),{from:me.uid,to:from,type:'answer',data:answer.toJSON()});
+        push(ref(db,'rooms/'+roomId+'/signals'),{
+          from:me.uid,to:from,type:'answer',data:answer.toJSON()
+        });
       });
     });
-  } else if(type==='answer'){ pc.setRemoteDescription(new RTCSessionDescription(data)); }
-  else if(type==='candidate'){ pc.addIceCandidate(new RTCIceCandidate(data)); }
+  } else if(type==='answer'){
+    pc.setRemoteDescription(new RTCSessionDescription(data));
+  } else if(type==='candidate'){
+    pc.addIceCandidate(new RTCIceCandidate(data));
+  }
 }
 
-// Mic activity indicator
 function startMicAnalyzer(uid,stream){
   const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);

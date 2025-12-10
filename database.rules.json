@@ -6,39 +6,33 @@
         ".write": "auth != null && auth.uid === $uid",
         "friends": {
           "$friendUid": {
-            ".read": "auth != null && (auth.uid === $uid || auth.uid === $friendUid)",
+            ".read": "auth != null && auth.uid === $uid",
             ".write": "auth != null && auth.uid === $uid"
           }
         }
       }
     },
-    "friendRequests": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null"
-      }
-    },
-    "invites": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null"
-      }
-    },
     "rooms": {
       "$roomId": {
-        ".read": "auth != null",
-        ".write": "auth != null",
         "participants": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid",
-            ".read": "auth != null"
+            ".read": "auth != null && root.child('rooms/'+$roomId+'/participants/'+auth.uid).exists()",
+            ".write": "auth != null && auth.uid === $uid"
           }
         },
         "signals": {
           "$signalId": {
-            ".write": "auth != null",
-            ".read": "auth != null"
+            ".read": "auth != null && (data.child('to').val() === auth.uid || data.child('from').val() === auth.uid)",
+            ".write": "auth != null && newData.child('from').val() === auth.uid"
           }
+        }
+      }
+    },
+    "invites": {
+      "$uid": {
+        "$inviteId": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && newData.child('from').val() === auth.uid"
         }
       }
     }
