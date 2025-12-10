@@ -1,306 +1,477 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MTMET — Gọi nhóm</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MTMET — Gọi nhóm (Upgraded)</title>
+<style>
+:root{
+  --bg:#0b1b2b; --surface:#12161a; --accent:#2196f3; --muted:#9fb0bd; --text:#e8eaed;
+  --tile-radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+.logo{width:44px;height:44;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center;font-weight:700}
+.header-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+#invitePanel{position:absolute;top:72px;right:18px;background:var(--surface);padding:10px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.6);max-height:360px;overflow:auto;display:none;z-index:50}
+.invFriend{display:flex;justify-content:space-between;align-items:center;padding:6px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:6px}
+.roomInfo{font-weight:700}
 
-  <style>
-    :root{
-      --bg:#0b1b2b;
-      --surface:#101820;
-      --accent:#2196f3;
-      --text:#e8eaed;
-      --muted:#9fb0bd;
-    }
-    body{
-      margin:0;
-      font-family:Inter,Segoe UI,Arial;
-      background:var(--bg);
-      color:var(--text);
-    }
-    header{
-      display:flex;align-items:center;gap:12px;
-      padding:12px 18px;
-      background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent);
-      border-bottom:1px solid rgba(255,255,255,0.05);
-    }
-    .logo{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center;font-weight:700}
-    
-    .stage{
-      display:grid;gap:12px;
-      padding:18px;
-      grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-    }
-    .tile{
-      background:#000;border-radius:18px;
-      overflow:hidden;position:relative;
-      min-height:180px;
-      box-shadow:0 10px 40px rgba(0,0,0,0.4);
-    }
-    video{width:100%;height:100%;object-fit:cover;}
+/* stage grid */
+#stageWrap{flex:1;overflow:auto;padding:18px}
+#stage{display:grid;gap:12px;align-content:start;grid-auto-rows:1fr}
 
-    .nameTag{
-      position:absolute;left:12px;bottom:12px;
-      background:rgba(0,0,0,0.45);
-      padding:6px 12px;border-radius:10px;
-      font-size:13px;
-      display:flex;align-items:center;gap:6px;
-    }
-    .micIcon{
-      width:14px;height:14px;border-radius:50%;
-      background:#f44336;
-    }
-    .micOn{background:#00e676!important;}
+/* tile */
+.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:150px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center}
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile .avatar{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;background:linear-gradient(135deg,#263238,#37474f);color:#fff}
+.tile .bottomBar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.badge{background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:10px;font-weight:600}
+.controls{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--surface);padding:10px 14px;border-radius:40px;display:flex;gap:10px;box-shadow:0 10px 60px rgba(0,0,0,0.6);z-index:40}
+.controlBtn{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700}
+.controlBtn.danger{background:#e53935}
+.smallBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px;border-radius:8px;cursor:pointer}
 
-    .avatar{
-      width:100%;height:100%;display:flex;align-items:center;justify-content:center;
-      font-size:40px;font-weight:700;
-      background:#263238;color:#90a4ae;
-    }
+/* mic indicator */
+.micDot{width:10px;height:10px;border-radius:50%;background:#f44336;margin-left:8px;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+.micOn{background:#00e676;box-shadow:0 0 8px rgba(0,230,118,0.18)}
 
-    .controls{
-      position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
-      background:var(--surface);
-      padding:12px 16px;
-      border-radius:40px;
-      display:flex;gap:12px;
-      box-shadow:0 10px 60px rgba(0,0,0,0.6);
-    }
-    .controlBtn{
-      width:46px;height:46px;border-radius:50%;border:none;
-      background:var(--accent);color:#fff;
-      cursor:pointer;font-size:14px;font-weight:600;
-      display:flex;align-items:center;justify-content:center;
-      transition:0.2s;
-    }
-    .controlBtn:hover{filter:brightness(1.15);}
-    .danger{background:#e53935!important;}
-  </style>
+/* responsive */
+@media (min-width:1400px){
+  #stage{grid-template-columns:repeat(4,1fr)}
+}
+@media (max-width:1399px) and (min-width:900px){
+  #stage{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:899px) and (min-width:600px){
+  #stage{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:599px){
+  #stage{grid-template-columns:repeat(1,1fr)}
+}
+</style>
 </head>
-
 <body>
-  <header>
-    <div class="logo">M</div>
-    <div>
-      <div id="roomTitle" style="font-weight:700;font-size:16px">Phòng</div>
-      <div id="meInfo" style="font-size:12px;color:var(--muted)">...</div>
-    </div>
-  </header>
 
-  <div id="stage" class="stage"></div>
-
-  <div class="controls">
-    <button id="muteBtn" class="controlBtn">🎤</button>
-    <button id="camBtn" class="controlBtn">🎥</button>
-    <button id="leaveBtn" class="controlBtn danger">✖</button>
+<header>
+  <div class="logo">M</div>
+  <div>
+    <div id="roomTitle" class="roomInfo">Room</div>
+    <div id="meInfo" style="font-size:13px;color:var(--muted)">...</div>
   </div>
 
-  <script src="firebase-config.js"></script>
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-    import { getDatabase, ref, onValue, push, set, remove, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+  <div class="header-right">
+    <div id="meName" style="color:var(--muted)"></div>
+    <button id="inviteBtn" class="smallBtn">Invite</button>
+    <button id="toggleGridBtn" class="smallBtn">Grid</button>
+    <div id="invitePanel" aria-hidden="true"></div>
+  </div>
+</header>
 
-    const app = initializeApp(window.FIREBASE_CONFIG);
-    const db = getDatabase(app);
+<div id="stageWrap"><div id="stage" role="region" aria-live="polite"></div></div>
 
-    const uid = localStorage.getItem('uid');
-    if(!uid) location.href='login.html';
+<div class="controls" role="toolbar" aria-label="call controls">
+  <button id="muteBtn" class="controlBtn">MIC</button>
+  <button id="camBtn" class="controlBtn">CAM</button>
+  <button id="screenBtn" class="controlBtn">SCR</button>
+  <button id="leaveBtn" class="controlBtn danger">✖</button>
+</div>
 
-    let me = null;
-    let roomId = new URL(location.href).searchParams.get('room');
-    if(!roomId){
-      roomId = prompt("Room ID?");
-      if(!roomId) location.href='index.html';
-    }
+<script src="firebase-config.js"></script>
+<script type="module">
+/*
+  call.html upgraded:
+  - wait for auth (prevent redirect)
+  - push-based signaling (avoid blinking)
+  - onDisconnect remove participant
+  - avatar fallback when cam off
+  - VAD mic indicator per tile
+  - responsive grid + manual toggle if needed
+  - invite UI showing friends list to send invites
+*/
 
-    const stage = document.getElementById('stage');
-    const meInfo = document.getElementById('meInfo');
-    const roomTitle = document.getElementById('roomTitle');
-    roomTitle.innerText = "Phòng: " + roomId;
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import {
+  getDatabase, ref, set, push, onChildAdded, onValue, remove, onDisconnect, get
+} from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-    let localStream;
-    const pcs = {};
-    const tiles = {};
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-    function elt(tag,attrs={},txt=''){const e=document.createElement(tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(txt)e.innerText=txt;return e;}
+// UI refs
+const stage = document.getElementById('stage');
+const roomTitle = document.getElementById('roomTitle');
+const meInfo = document.getElementById('meInfo');
+const meName = document.getElementById('meName');
+const inviteBtn = document.getElementById('inviteBtn');
+const invitePanel = document.getElementById('invitePanel');
+const toggleGridBtn = document.getElementById('toggleGridBtn');
 
-    // Load profile
-    onValue(ref(db,`users/${uid}`),snap=>{
-      me = snap.val();
-      if(!me) return;
-      meInfo.innerText = me.displayName;
-      initCall();
+const muteBtn = document.getElementById('muteBtn');
+const camBtn = document.getElementById('camBtn');
+const screenBtn = document.getElementById('screenBtn');
+const leaveBtn = document.getElementById('leaveBtn');
+
+let roomId = new URL(location.href).searchParams.get('room');
+let me = null;
+let localStream = null;
+let pcs = {};     // peerUid -> RTCPeerConnection
+let tiles = {};   // uid -> {el, video, avatar, micDot, camState}
+let vadIntervals = {}; // uid -> intervalId
+let usingGrid = true;
+
+const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+// helpers
+function elt(tag, attrs={}, txt=''){
+  const e = document.createElement(tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(txt) e.innerText = txt;
+  return e;
+}
+
+function toHex(buf){
+  return Array.from(buf).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ensure tile exists (create once)
+function ensureTile(uid, name){
+  if(tiles[uid]) return tiles[uid];
+  const t = elt('div',{class:'tile', id:'tile_'+uid});
+  const v = document.createElement('video'); v.autoplay=true; v.playsInline=true; v.playsInline=true;
+  v.style.display = 'none';
+  const avatar = elt('div',{class:'avatar'}, name ? name[0].toUpperCase() : uid[0].toUpperCase());
+  const bottom = elt('div',{class:'bottomBar'});
+  const badge = elt('div',{class:'badge'}, name || uid);
+  const right = elt('div',{}, '');
+  const micDot = elt('div',{class:'micDot'});
+  const camIcon = elt('div',{}, '📷');
+  right.appendChild(micDot); right.appendChild(camIcon);
+  bottom.appendChild(badge); bottom.appendChild(right);
+
+  t.appendChild(v); t.appendChild(avatar); t.appendChild(bottom);
+  stage.appendChild(t);
+
+  tiles[uid] = { el: t, video: v, avatar, badge, micDot, camIcon, camState:true };
+  return tiles[uid];
+}
+
+function removeTile(uid){
+  if(!tiles[uid]) return;
+  try{ tiles[uid].el.remove(); }catch(e){}
+  if(vadIntervals[uid]) { clearInterval(vadIntervals[uid]); delete vadIntervals[uid]; }
+  delete tiles[uid];
+}
+
+// VAD per stream -> toggle micDot micOn class
+function startVAD(stream, uid){
+  try{
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
+    src.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    if(vadIntervals[uid]) clearInterval(vadIntervals[uid]);
+    vadIntervals[uid] = setInterval(()=>{
+      analyser.getByteFrequencyData(data);
+      let sum = 0; for(let i=0;i<data.length;i++) sum += data[i];
+      const avg = sum / data.length;
+      const t = tiles[uid];
+      if(t){
+        if(avg > 10) t.micDot.classList.add('micOn'); else t.micDot.classList.remove('micOn');
+      }
+    }, 120);
+  }catch(e){
+    console.warn('VAD error', e);
+  }
+}
+
+// layout relayout function to set rows/cols depending on count and available width
+function relayout(){
+  const count = Object.keys(tiles).length || 1;
+  const width = stage.clientWidth;
+  let cols = 1;
+  if(width >= 1400) cols = Math.min(4, count);
+  else if(width >= 900) cols = Math.min(3, count);
+  else if(width >= 600) cols = Math.min(2, count);
+  else cols = 1;
+  stage.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+}
+window.addEventListener('resize', relayout);
+
+// SIGNALING helpers (push messages)
+function signalsRefFor(toUid){ return ref(db, `rooms/${roomId}/signals/${toUid}`); }
+function participantsRef(){ return ref(db, `rooms/${roomId}/participants`); }
+
+// Listen for incoming signals to me using onChildAdded (push)
+function listenSignals(myUid){
+  const refMySignals = signalsRefFor(myUid);
+  onChildAdded(refMySignals, async snap => {
+    const key = snap.key; const msg = snap.val();
+    if(!msg) return;
+    try{
+      await handleSignal(msg.from, msg);
+    }catch(e){ console.error('handleSignal err', e); }
+    // remove processed message
+    try{ await remove(ref(db, `rooms/${roomId}/signals/${myUid}/${key}`)); }catch(e){}
+  });
+}
+
+// join room: write participant + onDisconnect
+async function joinRoom(){
+  const pref = ref(db, `rooms/${roomId}/participants/${me.uid}`);
+  await set(pref, { name: me.displayName, cam: true, mic: true, joinedAt: Date.now()});
+  try{ onDisconnect(pref).remove(); }catch(e){}
+  // watch participants to create offers for newcomers & cleanup
+  onValue(participantsRef(), snap=>{
+    const val = snap.val() || {};
+    Object.entries(val).forEach(([pid, info])=>{
+      if(pid === me.uid) return;
+      ensureTile(pid, info.name);
+      if(!pcs[pid]) createOffer(pid, info.name);
     });
-
-    async function initCall(){
-      try{
-        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      }catch(e){
-        alert("Không lấy được cam/mic");
-        return;
+    // cleanup peers who left
+    Object.keys(pcs).forEach(k => { if(!val[k]) closePeer(k); });
+    // update tiles cam/mic status
+    Object.entries(val).forEach(([pid, info])=>{
+      if(tiles[pid]){
+        tiles[pid].avatar.style.display = info.cam ? 'none' : 'flex';
+        tiles[pid].video.style.display = info.cam ? 'block' : 'none';
+        tiles[pid].camState = !!info.cam;
+        if(tiles[pid].badge) tiles[pid].badge.innerText = info.name || pid;
+        if(info.mic) tiles[pid].micDot.classList.add('micOn'); else tiles[pid].micDot.classList.remove('micOn');
       }
+    });
+    relayout();
+  });
+  listenSignals(me.uid);
+}
 
-      addLocalTile();
-      joinRoom();
-      watchParticipants();
-      watchSignals();
+// create local tile and attach stream
+function createLocalTile(){
+  const t = ensureTile(me.uid, me.displayName);
+  t.video.muted = true;
+  t.video.srcObject = localStream;
+  t.video.style.display = localStream.getVideoTracks()[0].enabled ? 'block' : 'none';
+  t.avatar.style.display = localStream.getVideoTracks()[0].enabled ? 'none' : 'flex';
+  startVAD(localStream, me.uid);
+  relayout();
+}
+
+// create offer -> push to target
+async function createOffer(peerUid, peerName){
+  if(!localStream) return;
+  const pc = new RTCPeerConnection(iceServers);
+  pcs[peerUid] = pc;
+
+  // ensure tile early (avoid flicker)
+  ensureTile(peerUid, peerName);
+
+  // add local tracks
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.ontrack = e => {
+    const stream = e.streams[0];
+    const t = ensureTile(peerUid, peerName);
+    if(t.video.srcObject !== stream){
+      t.video.srcObject = stream;
+      t.video.style.display = t.camState ? 'block' : 'none';
+      t.avatar.style.display = t.camState ? 'none' : 'flex';
+      startVAD(stream, peerUid);
     }
+  };
 
-    function joinRoom(){
-      const pRef = ref(db,`rooms/${roomId}/participants/${uid}`);
-      set(pRef,{ name:me.displayName, mic:true, cam:true });
-      onDisconnect(pRef).remove();
+  pc.onicecandidate = e => {
+    if(e.candidate){
+      push(signalsRefFor(peerUid), { from: me.uid, type: 'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
     }
+  };
 
-    function addLocalTile(){
-      const tile=createTile(uid,me.displayName);
-      tile.video.srcObject=localStream;
-      tiles[uid].video.muted=true;
-      detectVoice(uid);
-    }
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  // push offer
+  await push(signalsRefFor(peerUid), { from: me.uid, type:'offer', sdp: offer.sdp, name: me.displayName });
+}
 
-    function createTile(id,name){
-      if(tiles[id]) return tiles[id];
-
-      const t=elt('div',{class:'tile'});
-      const v=document.createElement('video');
-      v.autoplay=true;v.playsInline=true;
-      const av=elt('div',{class:'avatar'},name[0].toUpperCase());
-      const tag=elt('div',{class:'nameTag'},name);
-      const micIcon=elt('div',{class:'micIcon'});
-      tag.appendChild(micIcon);
-
-      t.appendChild(v);
-      t.appendChild(av);
-      t.appendChild(tag);
-      stage.appendChild(t);
-
-      tiles[id]={el:t, video:v, avatar:av, micIcon};
-
-      return tiles[id];
-    }
-
-    // Participants changes
-    function watchParticipants(){
-      onValue(ref(db,`rooms/${roomId}/participants`),snap=>{
-        const list=snap.val()||{};
-        Object.keys(list).forEach(pid=>{
-          if(pid!==uid && !pcs[pid]) createOffer(pid,list[pid].name);
-          updateMedia(pid,list[pid]);
-        });
-        Object.keys(pcs).forEach(k=>{ if(!list[k]) removePeer(k); });
-      });
-    }
-
-    function updateMedia(pid,data){
-      if(!tiles[pid]) return;
-      tiles[pid].avatar.style.display = data.cam? 'none':'flex';
-      tiles[pid].video.style.display  = data.cam? 'block':'none';
-      tiles[pid].micIcon.classList.toggle('micOn',data.mic);
-    }
-
-    // Signaling
-    function watchSignals(){
-      onValue(ref(db,`rooms/${roomId}/signals/${uid}`),snap=>{
-        const msgs=snap.val()||{};
-        Object.entries(msgs).forEach(([k,v])=>{
-          handleSignal(k,v);
-          remove(ref(db,`rooms/${roomId}/signals/${uid}/${k}`));
-        });
-      });
-    }
-
-    async function createOffer(pid,name){
-      const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-      pcs[pid]=pc;
-
-      createTile(pid,name);
-      localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-
-      pc.ontrack=e=> tiles[pid].video.srcObject=e.streams[0];
-
-      pc.onicecandidate=e=>{
-        if(e.candidate)
-          push(ref(db,`rooms/${roomId}/signals/${pid}`),{from:uid,ice:e.candidate.toJSON()});
+// handle incoming messages
+async function handleSignal(fromUid, msg){
+  if(msg.type === 'offer'){
+    // create pc if not exist
+    if(!pcs[fromUid]){
+      const pc = new RTCPeerConnection(iceServers);
+      pcs[fromUid] = pc;
+      ensureTile(fromUid, msg.name);
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      pc.ontrack = e => {
+        const stream = e.streams[0];
+        const t = ensureTile(fromUid, msg.name);
+        if(t.video.srcObject !== stream){
+          t.video.srcObject = stream;
+          t.video.style.display = t.camState ? 'block' : 'none';
+          t.avatar.style.display = t.camState ? 'none' : 'flex';
+          startVAD(stream, fromUid);
+        }
       };
-
-      const offer=await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      push(ref(db,`rooms/${roomId}/signals/${pid}`),{from:uid,offer:offer.sdp,name:me.displayName});
+      pc.onicecandidate = e => {
+        if(e.candidate) push(signalsRefFor(fromUid), { from: me.uid, type:'candidate', candidate: e.candidate.toJSON() }).catch(()=>{});
+      };
     }
+    const pc = pcs[fromUid];
+    await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await push(signalsRefFor(fromUid), { from: me.uid, type:'answer', sdp: answer.sdp });
+  } else if(msg.type === 'answer'){
+    const pc = pcs[fromUid];
+    if(pc) await pc.setRemoteDescription({ type:'answer', sdp: msg.sdp });
+  } else if(msg.type === 'candidate'){
+    const pc = pcs[fromUid];
+    if(pc) try{ await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }catch(e){ console.warn(e); }
+  }
+}
 
-    async function handleSignal(from,data){
-      if(!pcs[from]){
-        const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-        pcs[from]=pc;
+function closePeer(peerUid){
+  if(pcs[peerUid]) try{ pcs[peerUid].close(); }catch(e){}
+  delete pcs[peerUid];
+  removeTile(peerUid);
+  relayout();
+}
 
-        createTile(from,data.name);
-        localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-        pc.ontrack=e=> tiles[from].video.srcObject=e.streams[0];
-        pc.onicecandidate=e=>{
-          if(e.candidate)
-            push(ref(db,`rooms/${roomId}/signals/${from}`),{from:uid,ice:e.candidate.toJSON()});
-        };
-      }
-      const pc=pcs[from];
+// toggle mic/cam local + update participant node
+muteBtn.onclick = () => {
+  if(!localStream) return;
+  const t = localStream.getAudioTracks()[0];
+  if(!t) return;
+  t.enabled = !t.enabled;
+  muteBtn.innerText = t.enabled ? 'MIC' : 'MIC OFF';
+  set(ref(db,`rooms/${roomId}/participants/${me.uid}/mic`), t.enabled).catch(()=>{});
+};
 
-      if(data.offer){
-        await pc.setRemoteDescription({type:'offer',sdp:data.offer});
-        const ans=await pc.createAnswer();
-        await pc.setLocalDescription(ans);
-        push(ref(db,`rooms/${roomId}/signals/${from}`),{from:uid,answer:ans.sdp});
-      }
-      else if(data.answer){
-        await pc.setRemoteDescription({type:'answer',sdp:data.answer});
-      }
-      else if(data.ice){
-        try{ await pc.addIceCandidate(new RTCIceCandidate(data.ice)); }catch(e){}
-      }
-    }
+camBtn.onclick = () => {
+  if(!localStream) return;
+  const t = localStream.getVideoTracks()[0];
+  if(!t) return;
+  t.enabled = !t.enabled;
+  camBtn.innerText = t.enabled ? 'CAM' : 'CAM OFF';
+  const tile = tiles[me.uid];
+  if(tile){
+    tile.video.style.display = t.enabled ? 'block' : 'none';
+    tile.avatar.style.display = t.enabled ? 'none' : 'flex';
+  }
+  set(ref(db,`rooms/${roomId}/participants/${me.uid}/cam`), t.enabled).catch(()=>{});
+};
 
-    function removePeer(pid){
-      if(pcs[pid]) pcs[pid].close();
-      delete pcs[pid];
-      if(tiles[pid]) tiles[pid].el.remove();
-      delete tiles[pid];
-    }
-
-    // Controls
-    muteBtn.onclick=()=>{
-      const t=localStream.getAudioTracks()[0];
-      t.enabled=!t.enabled;
-      set(ref(db,`rooms/${roomId}/participants/${uid}/mic`),t.enabled);
-      muteBtn.style.background=t.enabled?'var(--accent)':'#e53935';
+// screen share simple replaceTrack (prompt)
+screenBtn.onclick = async () => {
+  if(!navigator.mediaDevices.getDisplayMedia) return alert('Trình duyệt không hỗ trợ share screen');
+  try{
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video:true });
+    const screenTrack = screenStream.getVideoTracks()[0];
+    // replace local video sender tracks
+    Object.values(pcs).forEach(pc => {
+      pc.getSenders().forEach(s => {
+        if(s.track && s.track.kind === 'video') try{ s.replaceTrack(screenTrack); }catch(e){}
+      });
+    });
+    // local preview
+    const tile = tiles[me.uid];
+    if(tile){ tile.video.srcObject = screenStream; tile.avatar.style.display='none'; }
+    screenTrack.onended = () => {
+      // revert to local camera
+      const camTrack = localStream.getVideoTracks()[0];
+      Object.values(pcs).forEach(pc => {
+        pc.getSenders().forEach(s => {
+          if(s.track && s.track.kind === 'video') try{ s.replaceTrack(camTrack); }catch(e){}
+        });
+      });
+      if(tile){ tile.video.srcObject = localStream; tile.avatar.style.display = camTrack.enabled ? 'none' : 'flex'; }
     };
-    camBtn.onclick=()=>{
-      const t=localStream.getVideoTracks()[0];
-      t.enabled=!t.enabled;
-      set(ref(db,`rooms/${roomId}/participants/${uid}/cam`),t.enabled);
-      camBtn.style.background=t.enabled?'var(--accent)':'#e53935';
-    };
+  }catch(e){ console.warn(e); alert('Share screen thất bại: '+e.message); }
+};
 
-    leaveBtn.onclick=()=>{
-      remove(ref(db,`rooms/${roomId}/participants/${uid}`));
-      location.href='index.html';
-    };
+// leave
+leaveBtn.onclick = async () => {
+  try{ await remove(ref(db,`rooms/${roomId}/participants/${me.uid}`)); }catch(e){}
+  Object.keys(pcs).forEach(k=>closePeer(k));
+  if(localStream) localStream.getTracks().forEach(t=>t.stop());
+  location.href = 'index.html';
+};
 
-    // Voice detect
-    function detectVoice(pid){
-      const v=new (window.AudioContext||webkitAudioContext)();
-      const src=v.createMediaStreamSource(localStream);
-      const analyser=v.createAnalyser();
-      src.connect(analyser);
-      const arr=new Uint8Array(analyser.frequencyBinCount);
+// INVITE PANEL: load friends, build list
+inviteBtn.onclick = async () => {
+  if(invitePanel.style.display === 'block'){ invitePanel.style.display='none'; invitePanel.setAttribute('aria-hidden','true'); return; }
+  invitePanel.innerHTML = '<div style="font-weight:700;margin-bottom:8px">Mời bạn vào phòng</div>';
+  invitePanel.style.display='block'; invitePanel.setAttribute('aria-hidden','false');
+  // fetch friends of me
+  const snap = await get(ref(db, `users/${me.uid}/friends`));
+  const list = snap.val() || {};
+  const keys = Object.keys(list);
+  if(keys.length === 0){ invitePanel.innerHTML += '<div class="muted">Bạn chưa có bạn bè</div>'; return; }
+  for(const fid of keys){
+    try{
+      const usnap = await get(ref(db, `users/${fid}`));
+      const u = usnap.val();
+      if(!u) continue;
+      const row = elt('div',{class:'invFriend'});
+      row.innerHTML = `<div>${u.displayName} (${u.username})</div>`;
+      const b = elt('button',{}, 'Mời');
+      b.onclick = async ()=>{
+        const k = 'i_'+Math.random().toString(36).slice(2,9);
+        await set(ref(db, `invites/${fid}/${k}`), { from: me.uid, fromName: me.displayName, room: roomId, time: Date.now() });
+        b.innerText = 'Đã gửi'; b.disabled = true;
+      };
+      row.appendChild(b);
+      invitePanel.appendChild(row);
+    }catch(e){ console.warn(e); }
+  }
+};
 
-      function loop(){
-        analyser.getByteFrequencyData(arr);
-        const vol=arr.reduce((a,b)=>a+b)/arr.length;
-        if(tiles[pid]) tiles[pid].micIcon.classList.toggle('micOn',vol>30);
-        requestAnimationFrame(loop);
-      }
-      loop();
+// grid toggle for user control
+toggleGridBtn.onclick = ()=>{ usingGrid = !usingGrid; if(usingGrid) relayout(); else { stage.style.gridTemplateColumns = 'repeat(auto-fit,minmax(160px,1fr))'; } };
+
+// AUTH & init flow
+let firstCheck = true;
+onAuthStateChanged(auth, async user => {
+  if(user){
+    firstCheck = false;
+    const uid = user.uid;
+    // load profile once
+    const usnap = await get(ref(db, `users/${uid}`));
+    const data = usnap.val();
+    if(!data){ alert('Profile not found'); location.href = 'login.html'; return; }
+    me = { uid, username: data.username, displayName: data.displayName };
+    meInfo.innerText = me.displayName;
+    meName.innerText = me.displayName;
+    // init media and join
+    try{
+      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    }catch(e){
+      alert('Cần quyền Camera/Mic để gọi');
+      location.href = 'index.html';
+      return;
     }
-  </script>
+    createLocalTile();
+    // ensure roomId
+    if(!roomId){ roomId = prompt('Nhập Room ID:'); if(!roomId) { location.href='index.html'; return; } }
+    roomTitle.innerText = 'Room: ' + roomId;
+    // join and start watching (after user loaded)
+    await joinRoom();
+  } else {
+    if(!firstCheck) {
+      location.href = 'login.html';
+    }
+  }
+});
+
+// Cleanup on unload: stop tracks
+window.addEventListener('beforeunload', ()=>{
+  try{ if(localStream) localStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+});
+
+</script>
 </body>
 </html>
