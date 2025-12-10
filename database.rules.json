@@ -9,7 +9,7 @@
       }
     },
     "usernameIndex": {
-      ".read": "auth != null",
+      ".read": true,
       ".write": "auth != null"
     },
     "friendRequests": {

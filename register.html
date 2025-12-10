@@ -28,7 +28,7 @@ a{color:#2196f3;text-decoration:none;display:block;text-align:center;margin-top:
 <script src="firebase-config.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged, deleteUser } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
 import { getDatabase, ref, get, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
@@ -51,6 +51,10 @@ btnRegister.onclick = async ()=>{
     msg.innerText='Đang đăng ký...';
     msg.style.color='#9fb0bd';
 
+    // Ensure username is not taken (public usernameIndex)
+    const existing = await get(ref(db, `usernameIndex/${u}`));
+    if(existing && existing.exists && existing.exists()){ msg.style.color='#f44'; msg.innerText='Tên đăng nhập đã tồn tại'; return; }
+
     // Create Firebase auth user with email=username@app.local
     const email = u + '@app.local';
     const userCred = await createUserWithEmailAndPassword(auth, email, p);
@@ -65,6 +69,16 @@ btnRegister.onclick = async ()=>{
       email: email,
       friends: {}
     });
+    // Also write a public username index for quick lookup during login
+    try{
+      await set(ref(db, `usernameIndex/${u}`), { uid: uid, email: email });
+      console.log('✓ Username index written');
+    }catch(ixErr){
+      console.warn('Could not write usernameIndex:', ixErr);
+      // Roll back auth user to avoid orphaned account
+      try{ await deleteUser(userCred.user); console.log('Rolled back auth user'); }catch(delErr){ console.error('Failed to delete orphaned auth user:', delErr); }
+      throw ixErr;
+    }
     
     console.log('✓ User data saved to DB');
 

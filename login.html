@@ -49,25 +49,18 @@ btnLogin.onclick = async ()=>{
     msg.innerText='Đang đăng nhập...';
     msg.style.color='#9fb0bd';
     
-    // Get user by username to find email
-    const usersSnap = await get(ref(db, 'users'));
-    const users = usersSnap.val() || {};
+    // Lookup username in the public usernameIndex to find uid + email
+    const idxSnap = await get(ref(db, `usernameIndex/${u}`));
+    const idx = idxSnap.val();
     let userEmail = null;
     let displayName = null;
-    
-    for(const uid in users){
-      if(users[uid].username === u){
-        userEmail = users[uid].email;
-        displayName = users[uid].displayName;
-        break;
-      }
-    }
-    
-    if(!userEmail){
+    if(!idx){
       msg.style.color='#f44';
       msg.innerText='Tên đăng nhập không tồn tại';
       return;
     }
+    userEmail = idx.email;
+    // Optionally we could fetch displayName after auth if needed
     
     // Login with email and password
     await signInWithEmailAndPassword(auth, userEmail, p);

@@ -6,9 +6,24 @@
     "generate-config": "node scripts/generate-firebase-config.js"
   },
   "dependencies": {
-    "firebase": "^12.6.0"
+    "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0"
   },
   "devDependencies": {
     "dotenv": "^16.3.1"
-  }
+  },
+  "description": "call free# mtmet # mtmet # mtmet # mtmet # mtmeet",
+  "main": "firebase-config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lmt1102011/mtmeet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/lmt1102011/mtmeet/issues"
+  },
+  "homepage": "https://github.com/lmt1102011/mtmeet#readme"
 }

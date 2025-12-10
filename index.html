@@ -125,6 +125,17 @@ onAuthStateChanged(auth, async user => {
           email: email,
           friends: {}
         });
+        // Try to populate usernameIndex if missing (helps login lookup for older accounts)
+        try{
+          const idxSnap = await get(ref(db, `usernameIndex/${derivedUsername}`));
+          const idxVal = idxSnap.val();
+          if(!idxVal){
+            await set(ref(db, `usernameIndex/${derivedUsername}`), { uid: uid, email: email });
+            console.log('✓ usernameIndex populated for', derivedUsername);
+          } else if(idxVal.uid && idxVal.uid !== uid){
+            console.warn('usernameIndex exists for', derivedUsername, '->', idxVal.uid);
+          }
+        }catch(ixErr){ console.warn('Could not populate usernameIndex:', ixErr); }
         // Reload the node to get consistent data
         const newSnap = await get(ref(db, `users/${uid}`));
         const newData = newSnap.val();
@@ -144,15 +155,15 @@ onAuthStateChanged(auth, async user => {
         profile.innerHTML = '<div class="small">Vui lòng kiểm tra cấu hình Firebase hoặc tạo hồ sơ thủ công trong Firebase Console.</div>';
         return;
       }
+    } else {
+      me = { uid, username: data.username, displayName: data.displayName };
+      meDisplay.innerText = me.displayName;
+      btnLogout.style.display=''; 
+      btnCreateRoom.disabled=false;
+      renderProfile(data);
+      watchFriends();
+      watchInbox();
     }
-    
-    me = { uid, username: data.username, displayName: data.displayName };
-    meDisplay.innerText = me.displayName;
-    btnLogout.style.display=''; 
-    btnCreateRoom.disabled=false;
-    renderProfile(data);
-    watchFriends();
-    watchInbox();
   } catch(e) {
     console.error('Auth error:', e);
     // If it's a permission error, try refreshing the ID token and retry once
@@ -197,58 +208,10 @@ btnLogout.onclick = async ()=>{
 };
 
 function renderProfile(data){
-  profile.innerHTML = `<div><strong>${me.displayName}</strong></div><div class="small">@${me.username}</div>` +
-    `<div style="margin-top:8px"><button id="btnDbTest" class="btn ghost">Kiểm tra DB</button></div>` +
-    `<div id="dbTestOutput" class="small" style="margin-top:8px;color:#f4f4f4"></div>`;
-  attachDbTest();
+  profile.innerHTML = `<div><strong>${me.displayName}</strong></div><div class="small">@${me.username}</div>`;
 }
 
-function attachDbTest(){
-  const btn = document.getElementById('btnDbTest');
-  if(!btn) return;
-  if(btn._attached) return; // avoid duplicate handlers
-  btn._attached = true;
-  btn.onclick = async ()=>{
-    const out = document.getElementById('dbTestOutput');
-    out.innerText = 'Đang kiểm tra...';
-    try {
-      if(!auth || !auth.currentUser){
-        out.innerText = 'Chưa xác thực (no auth). Vui lòng đăng nhập lại.';
-        console.warn('DB Test: no auth currentUser');
-        return;
-      }
-      const uid = auth.currentUser.uid;
-      console.debug('DB Test: uid=', uid);
-      out.innerText = 'UID: ' + uid + '\nLấy token...';
-      try {
-        const token = await auth.currentUser.getIdToken(/* forceRefresh */ true);
-        console.debug('DB Test: token (first 40 chars):', token && token.slice && token.slice(0,40));
-        out.innerText = out.innerText + '\nToken OK (cắt)';
-      } catch(terr){
-        console.error('DB Test: token error', terr);
-        out.innerText = out.innerText + '\nLỗi lấy token: ' + (terr.message || terr.code || terr);
-      }
-
-      out.innerText = out.innerText + '\nThử đọc /users/' + uid;
-      try {
-        const snap = await get(ref(db, `users/${uid}`));
-        const val = snap.val();
-        console.debug('DB Test read result:', val);
-        if(val) {
-          out.innerText = out.innerText + '\nOK — user record found: ' + JSON.stringify({username: val.username, displayName: val.displayName});
-        } else {
-          out.innerText = out.innerText + '\nKhông tìm thấy user record (null)';
-        }
-      } catch(dbErr){
-        console.error('DB Test read error:', dbErr);
-        out.innerText = out.innerText + '\nLỗi khi đọc DB:\n' + (dbErr.code || '') + ' - ' + (dbErr.message || dbErr);
-      }
-    } catch(e){
-      console.error('DB Test unexpected error:', e);
-      document.getElementById('dbTestOutput').innerText = 'Lỗi không mong đợi: ' + (e.message || e);
-    }
-  };
-}
+// Removed DB test button and handler (debug UI)
 
 function watchFriends(){
   if(!me) return;
