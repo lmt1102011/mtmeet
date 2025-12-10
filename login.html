@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Đăng nhập — MTMET</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <div class="auth-box">
+    <h2>Đăng nhập</h2>
+    <input id="username" placeholder="Tên đăng nhập" autocomplete="off">
+    <input id="password" placeholder="Mật khẩu" type="password">
+    <button id="btnLogin">Đăng nhập</button>
+    <div id="msg"></div>
+    <p>Chưa có tài khoản? <a href="register.html">Đăng ký</a></p>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+    const app = initializeApp(window.FIREBASE_CONFIG);
+    const db = getDatabase(app);
+
+    const btn = document.getElementById('btnLogin');
+    const msg = document.getElementById('msg');
+
+    btn.onclick = login;
+
+    async function login(){
+      msg.innerText = "";
+
+      let username = document.getElementById('username').value.trim().toLowerCase();
+      let password = document.getElementById('password').value;
+
+      if(!username || !password){
+        msg.innerText = "Nhập đủ thông tin";
+        return;
+      }
+
+      const snap = await get(ref(db, 'users'));
+      const all = snap.val() || {};
+
+      // Tìm user theo username
+      let targetUid = null;
+      let user = null;
+
+      Object.entries(all).forEach(([uid,u])=>{
+        if(u.username === username){
+          targetUid = uid;
+          user = u;
+        }
+      });
+
+      if(!targetUid){
+        msg.innerText = "Sai username hoặc mật khẩu";
+        return;
+      }
+
+      // hash lại mật khẩu người nhập
+      const salt = hexToBytes(user.salt);
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits({
+        name:"PBKDF2",
+        salt,
+        iterations:100000,
+        hash:"SHA-256"
+      }, key, 256);
+
+      const hashHex = toHex(new Uint8Array(bits));
+
+      if(hashHex !== user.passwordHash){
+        msg.innerText = "Sai username hoặc mật khẩu";
+        return;
+      }
+
+      // Lưu session
+      localStorage.setItem('uid', targetUid);
+      location.href = "index.html";
+    }
+
+    function hexToBytes(hex){
+      const arr = [];
+      for(let i=0;i<hex.length;i+=2){
+        arr.push(parseInt(hex.substr(i,2),16));
+      }
+      return new Uint8Array(arr);
+    }
+    function toHex(buf){
+      return Array.from(buf).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  </script>
+</body>
+</html>

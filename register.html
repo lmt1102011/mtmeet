@@ -1,133 +1,85 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Đăng ký — MTMET</title>
-
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-:root {
-    --primary:#1a73e8;
-    --bg:#f1f3f4;
-    --text:#202124;
-}
-
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
-
-body{
-    height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background:var(--bg);
-}
-
-.auth-box{
-    width:350px;
-    padding:28px;
-    background:#fff;
-    border-radius:14px;
-    box-shadow:0 6px 25px rgba(0,0,0,0.1);
-    text-align:center;
-}
-
-.auth-box h2{
-    margin-bottom:18px;
-    font-weight:600;
-    color:var(--text);
-}
-
-input{
-    width:100%;
-    padding:12px;
-    border-radius:10px;
-    border:1px solid #ddd;
-    margin:6px 0;
-    font-size:15px;
-}
-
-input:focus{outline:none;border-color:var(--primary)}
-
-button{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:10px;
-    background:var(--primary);
-    color:white;
-    font-size:16px;
-    margin-top:10px;
-    cursor:pointer;
-    transition:.2s;
-}
-
-button:hover{background:#155fcc}
-
-p{margin-top:10px;font-size:14px}
-a{text-decoration:none;color:var(--primary)}
-a:hover{text-decoration:underline}
-
-#msg{margin-top:10px;font-size:14px;color:red}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Đăng ký — MTMET</title>
+  <link rel="stylesheet" href="auth.css">
 </head>
 <body>
-
-<div class="auth-box">
-    <h2>Đăng ký tài khoản</h2>
-    <input id="username" placeholder="Tên người dùng" autocomplete="off">
-    <input id="password" type="password" placeholder="Mật khẩu">
-    <input id="displayName" placeholder="Tên hiển thị (không bắt buộc)">
+  <div class="auth-box">
+    <h2>Đăng ký</h2>
+    <input id="displayName" placeholder="Tên hiển thị" autocomplete="off">
+    <input id="username" placeholder="Tên đăng nhập" autocomplete="off">
+    <input id="password" placeholder="Mật khẩu" type="password">
     <button id="btnRegister">Tạo tài khoản</button>
     <div id="msg"></div>
-    <p>Đã có tài khoản? <a href="index.html">Đăng nhập</a></p>
-</div>
+    <p>Đã có tài khoản? <a href="login.html">Đăng nhập</a></p>
+  </div>
 
-<script src="firebase-config.js"></script>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getDatabase, ref, get, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-const app = initializeApp(window.FIREBASE_CONFIG);
-const auth = getAuth(app);
-const db = getDatabase(app);
+    const app = initializeApp(window.FIREBASE_CONFIG);
+    const db = getDatabase(app);
 
-const usernameEl = document.getElementById("username");
-const passwordEl = document.getElementById("password");
-const displayEl = document.getElementById("displayName");
-const msg = document.getElementById("msg");
+    const btn = document.getElementById('btnRegister');
+    const msg = document.getElementById('msg');
+    
+    btn.onclick = register;
 
-function show(m){ msg.innerText = m; }
+    async function register(){
+      msg.innerText = '';
 
-document.getElementById("btnRegister").onclick = async ()=>{
-    const username = usernameEl.value.trim();
-    const password = passwordEl.value.trim();
-    const displayName = displayEl.value.trim() || username;
+      let displayName = displayName.value.trim();
+      let username = username.value.trim().toLowerCase();
+      let password = password.value;
 
-    if(!username || !password) return show("Nhập đủ tên và mật khẩu");
+      if(!displayName || !username || !password){
+        msg.innerText = "Nhập đầy đủ thông tin";
+        return;
+      }
 
-    // tạo email giả để Firebase Auth hợp lệ
-    const email = username + "@mtmet.local";
+      // Kiểm tra username đã tồn tại chưa
+      const snap = await get(ref(db, 'users'));
+      const allUsers = snap.val() || {};
+      if(Object.values(allUsers).some(u => u.username === username)){
+        msg.innerText = "Tên đăng nhập đã tồn tại!";
+        return;
+      }
 
-    try{
-        const cred = await createUserWithEmailAndPassword(auth,email,password);
-        const uid = cred.user.uid;
+      // Generate salt
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits({
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256"
+      }, key, 256);
 
-        await updateProfile(cred.user, { displayName });
+      const hashArray = Array.from(new Uint8Array(bits));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+      const saltHex = Array.from(salt).map(b=>b.toString(16).padStart(2,'0')).join('');
 
-        await set(ref(db,"users/"+uid), {
-            username, displayName, createdAt: Date.now(), friends:{}
-        });
+      // Tạo UID ngẫu nhiên
+      const uid = 'u_' + Math.random().toString(36).slice(2,10);
 
-        show("Tạo tài khoản thành công! Đang chuyển...");
-        setTimeout(()=>location.href="login.html",1000);
-    }catch(e){
-        show(e.message);
+      await set(ref(db, `users/${uid}`), {
+        username,
+        displayName,
+        passwordHash: hashHex,
+        salt: saltHex
+      });
+
+      // Lưu session
+      localStorage.setItem('uid', uid);
+
+      location.href = "index.html";
     }
-}
-</script>
-
+  </script>
 </body>
 </html>

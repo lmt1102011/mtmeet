@@ -1,120 +1,227 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Đăng nhập — MTMET</title>
-
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-:root {
-    --primary:#1a73e8;
-    --bg:#f1f3f4;
-    --text:#202124;
-}
-
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
-
-body{
-    height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background:var(--bg);
-}
-
-.auth-box{
-    width:350px;
-    padding:28px;
-    background:#fff;
-    border-radius:14px;
-    box-shadow:0 6px 25px rgba(0,0,0,0.1);
-    text-align:center;
-}
-
-.auth-box h2{
-    margin-bottom:18px;
-    font-weight:600;
-    color:var(--text);
-}
-
-input{
-    width:100%;
-    padding:12px;
-    border-radius:10px;
-    border:1px solid #ddd;
-    margin:6px 0;
-    font-size:15px;
-}
-
-input:focus{outline:none;border-color:var(--primary)}
-
-button{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:10px;
-    background:var(--primary);
-    color:white;
-    font-size:16px;
-    margin-top:10px;
-    cursor:pointer;
-    transition:.2s;
-}
-
-button:hover{background:#155fcc}
-
-p{margin-top:10px;font-size:14px}
-a{text-decoration:none;color:var(--primary)}
-a:hover{text-decoration:underline}
-
-#msg{margin-top:10px;font-size:14px;color:red}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MTMET — Danh sách bạn bè</title>
+  <style>
+    :root{--bg:#0b1b2b;--surface:#101820;--accent:#2196f3;--muted:#9fb0bd;--card-radius:12px;--text:#e8eaed}
+    body{margin:0;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+    header{display:flex;align-items:center;gap:12px;padding:18px;background:linear-gradient(90deg,rgba(33,150,243,0.06),transparent);box-shadow:0 6px 20px rgba(0,0,0,0.4)}
+    .logo{width:44px;height:44;border-radius:10px;background:linear-gradient(135deg,var(--accent),#64b5f6);display:flex;align-items:center;justify-content:center;font-weight:800}
+    .container{max-width:1100px;margin:18px auto;display:grid;grid-template-columns:320px 1fr;gap:18px;padding:0 16px}
+    .card{background:var(--surface);padding:16px;border-radius:var(--card-radius);box-shadow:0 8px 40px rgba(0,0,0,0.5)}
+    h2{margin:0 0 10px}
+    .userItem{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:8px}
+    .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--accent);color:white;cursor:pointer}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent)}
+    .muted{color:var(--muted)}
+    .inboxItem{padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:8px}
+    input{width:100%;padding:8px;border-radius:8px;background:#0b1115;border:1px solid #17202a;color:var(--text)}
+  </style>
 </head>
 <body>
+  <header>
+    <div class="logo">M</div>
+    <div>
+      <div style="font-weight:700">MTMET</div>
+      <div style="font-size:12px;color:var(--muted)">Gọi nhóm • Giao diện Meet-like</div>
+    </div>
 
-<div class="auth-box">
-    <h2>Đăng nhập</h2>
-    <input id="username" placeholder="Tên người dùng">
-    <input id="password" type="password" placeholder="Mật khẩu">
-    <button id="btnLogin">Đăng nhập</button>
-    <div id="msg"></div>
-    <p>Chưa có tài khoản? <a href="register.html">Tạo mới</a></p>
-</div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <div id="meDisplay" class="muted">...</div>
+      <button id="btnCreateRoom" class="btn">Tạo phòng</button>
+      <button id="btnLogout" class="btn ghost">Đăng xuất</button>
+    </div>
+  </header>
 
-<script src="firebase-config.js"></script>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+  <div class="container">
+    <div>
+      <div class="card">
+        <h2>Danh sách bạn bè</h2>
+        <div id="friendsList">...</div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+        <div>
+          <input id="searchUser" placeholder="Tìm người (username)">
+          <div id="searchResults" style="margin-top:10px"></div>
+        </div>
+      </div>
 
-const app = initializeApp(window.FIREBASE_CONFIG);
-const auth = getAuth(app);
+      <div style="height:18px"></div>
+      <div class="card">
+        <h2>Hộp thư</h2>
+        <div id="inbox">...</div>
+      </div>
+    </div>
 
-const usernameEl = document.getElementById("username");
-const passwordEl = document.getElementById("password");
-const msg = document.getElementById("msg");
+    <div>
+      <div class="card">
+        <h2>Thông tin bạn</h2>
+        <div id="profile"></div>
+      </div>
 
-function show(m){ msg.innerText = m; }
+      <div style="height:18px"></div>
+      <div class="card">
+        <h2>Phòng đang hoạt động</h2>
+        <div id="roomsArea">Tạo phòng và mời bạn</div>
+      </div>
+    </div>
+  </div>
 
-document.getElementById("btnLogin").onclick = async ()=>{
-    const username = usernameEl.value.trim();
-    const password = passwordEl.value.trim();
-    if(!username || !password) return show("Nhập đủ thông tin");
-    
-    const email = username + "@mtmet.local";
-    try{
-        await signInWithEmailAndPassword(auth,email,password);
-        location.href="index.html";
-    }catch(e){
-        show("Sai tên hoặc mật khẩu!");
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+    import { getDatabase, ref, onValue, get, set, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+    const app = initializeApp(window.FIREBASE_CONFIG);
+    const db = getDatabase(app);
+
+    const uid = localStorage.getItem('uid');
+    if(!uid){ location.href='login.html'; }
+
+    const meDisplay = document.getElementById('meDisplay');
+    const btnCreateRoom = document.getElementById('btnCreateRoom');
+    const btnLogout = document.getElementById('btnLogout');
+    const friendsList = document.getElementById('friendsList');
+    const searchUser = document.getElementById('searchUser');
+    const searchResults = document.getElementById('searchResults');
+    const inbox = document.getElementById('inbox');
+    const profile = document.getElementById('profile');
+
+    let me = null;
+
+    function elt(tag,attrs={},txt=''){const e=document.createElement(tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(txt)e.innerText=txt;return e;}
+
+    onValue(ref(db, `users/${uid}`), snap=>{
+      const data = snap.val();
+      if(!data) return;
+      me = { uid, ...data };
+      meDisplay.innerText = me.displayName;
+      profile.innerHTML = `<strong>${me.displayName}</strong><br><span class="muted">${me.username}</span>`;
+      watchFriends();
+      watchInbox();
+    });
+
+    btnLogout.onclick = ()=>{
+      localStorage.removeItem('uid');
+      location.href='login.html';
+    };
+
+    // FRIEND LIST
+    function watchFriends(){
+      onValue(ref(db, `users/${uid}/friends`), snap=>{
+        const val = snap.val() || {};
+        friendsList.innerHTML = '';
+        const ids = Object.keys(val);
+        if(ids.length === 0){
+          friendsList.innerHTML = `<div class="muted">Chưa có bạn bè</div>`;
+          return;
+        }
+        ids.forEach(async fid=>{
+          const fs = await get(ref(db, `users/${fid}`));
+          const u = fs.val();
+          if(!u) return;
+          const item = elt('div',{class:'userItem'});
+          item.innerHTML = `<div>${u.displayName} (${u.username})</div>`;
+          const btn = elt('button',{class:'btn'}, 'Mời');
+          btn.onclick = ()=>invite(fid);
+          item.appendChild(btn);
+          friendsList.appendChild(item);
+        });
+      });
     }
-};
 
-onAuthStateChanged(auth, u=>{
-    if(u) location.href="index.html";
-});
-</script>
+    // SEARCH USERS
+    searchUser.addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
+    async function search(){
+      const q = searchUser.value.trim().toLowerCase();
+      if(!q) return;
+      const snap = await get(ref(db, 'users'));
+      const all = snap.val() || {};
+      searchResults.innerHTML = '';
+      Object.entries(all).forEach(([i,u])=>{
+        if(i!==uid && u.username.includes(q)){
+          const item = elt('div',{class:'userItem'},`${u.displayName} (${u.username})`);
+          const btn = elt('button',{class:'btn ghost'},'Kết bạn');
+          btn.onclick = ()=>sendFriendReq(i);
+          item.appendChild(btn);
+          searchResults.appendChild(item);
+        }
+      });
+    }
+    async function sendFriendReq(target){
+      await set(ref(db, `friendRequests/${target}/${uid}`),{
+        from:uid,
+        name:me.displayName,
+        username:me.username,
+        time:Date.now()
+      });
+      alert('Đã gửi lời mời');
+    }
 
+    // INBOX (requests + invites)
+    function watchInbox(){
+      inbox.innerHTML = '';
+
+      // Friend requests
+      onValue(ref(db, `friendRequests/${uid}`), snap=>{
+        const items = snap.val() || {};
+        inbox.innerHTML = '<strong>Lời mời kết bạn:</strong><br>';
+        Object.entries(items).forEach(([fid,r])=>{
+          const el = elt('div',{class:'inboxItem'},`${r.name} (${r.username})`);
+          const ok = elt('button',{class:'btn'},'OK');
+          const no = elt('button',{class:'btn ghost'},'Hủy');
+          ok.onclick = async()=>{
+            await set(ref(db,`users/${uid}/friends/${fid}`),true);
+            await set(ref(db,`users/${fid}/friends/${uid}`),true);
+            await remove(ref(db,`friendRequests/${uid}/${fid}`));
+          };
+          no.onclick = ()=>remove(ref(db,`friendRequests/${uid}/${fid}`));
+          el.appendChild(ok); el.appendChild(no);
+          inbox.appendChild(el);
+        });
+      });
+
+      // Room invites
+      onValue(ref(db, `invites/${uid}`), snap=>{
+        const items = snap.val() || {};
+        const ids = Object.keys(items);
+        if(ids.length){
+          inbox.innerHTML += '<br><strong>Lời mời phòng:</strong><br>';
+          ids.forEach(k=>{
+            const it = items[k];
+            const el = elt('div',{class:'inboxItem'},`${it.fromName} mời vào phòng <strong>${it.room}</strong>`);
+            const join = elt('button',{class:'btn'},'Vào ngay');
+            const ignore = elt('button',{class:'btn ghost'},'Bỏ qua');
+            join.onclick = ()=>location.href=`call.html?room=${it.room}`;
+            ignore.onclick = ()=>remove(ref(db,`invites/${uid}/${k}`));
+            el.appendChild(join); el.appendChild(ignore);
+            inbox.appendChild(el);
+          });
+        }
+      });
+    }
+
+    // INVITE TO ROOM
+    function invite(fid){
+      const room = prompt('Nhập room ID (tạo phòng trước)');
+      if(!room) return;
+      const id='i_'+Math.random().toString(36).slice(2,9);
+      set(ref(db, `invites/${fid}/${id}`), {
+        from:uid,
+        fromName:me.displayName,
+        room,
+        time:Date.now()
+      });
+      alert('Đã gửi lời mời!');
+    }
+
+    // CREATE ROOM
+    btnCreateRoom.onclick = ()=>{
+      const id='room_'+Math.random().toString(36).slice(2,9);
+      set(ref(db,`rooms/${id}`),{createdBy:uid,createdAt:Date.now()});
+      location.href=`call.html?room=${id}`;
+    };
+  </script>
 </body>
 </html>
