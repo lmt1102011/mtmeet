@@ -155,14 +155,39 @@ onAuthStateChanged(auth, async user => {
     watchInbox();
   } catch(e) {
     console.error('Auth error:', e);
-    // Friendly message for permission issues
-    if((e && e.code && e.code.toLowerCase().includes('permission')) || (e && e.message && e.message.toLowerCase().includes('permission'))){
-      meDisplay.innerText = 'Lỗi quyền truy cập dữ liệu. Vui lòng kiểm tra cấu hình Firebase (project/database).';
-      // Offer an immediate hint to the user in the profile area
-      profile.innerHTML = '<div class="small">Kiểm tra dự án Firebase đang sử dụng: <strong>' + (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId) + '</strong></div><div class="small">Nếu không đúng, cập nhật `firebase-config.js` hoặc triển khai rules cho dự án đó.</div>';
-    } else {
-      meDisplay.innerText='Lỗi: ' + e.message;
+    // If it's a permission error, try refreshing the ID token and retry once
+    const isPermission = (e && ((e.code && e.code.toLowerCase().includes('permission')) || (e.message && e.message.toLowerCase().includes('permission'))));
+    if(isPermission && auth && auth.currentUser){
+      try {
+        console.warn('Permission error detected — attempting to refresh auth token and retry...');
+        await auth.currentUser.getIdToken(true);
+        const retrySnap = await get(ref(db, `users/${auth.currentUser.uid}`));
+        const retryData = retrySnap.val();
+        if(retryData){
+          me = { uid: auth.currentUser.uid, username: retryData.username, displayName: retryData.displayName };
+          meDisplay.innerText = me.displayName;
+          btnLogout.style.display='';
+          btnCreateRoom.disabled=false;
+          renderProfile(retryData);
+          watchFriends();
+          watchInbox();
+          return;
+        }
+      } catch(retryErr){
+        console.error('Retry after token refresh failed:', retryErr);
+      }
     }
+
+    // Show friendly guidance and a retry button
+    meDisplay.innerText = 'Lỗi quyền truy cập dữ liệu. Vui lòng kiểm tra cấu hình Firebase.';
+    const proj = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId) || 'unknown';
+    profile.innerHTML = '<div class="small">Dự án hiện dùng: <strong>' + proj + '</strong></div>' +
+      '<div class="small">Nếu dự án sai, cập nhật `firebase-config.js` hoặc triển khai rules cho dự án đó.</div>' +
+      '<div style="margin-top:8px"><button id="btnRetryAuth" class="btn ghost">Thử lại</button></div>';
+    document.getElementById('btnRetryAuth').onclick = async ()=>{
+      meDisplay.innerText = 'Đang thử lại...';
+      try{ await auth.currentUser.getIdToken(true); location.reload(); }catch(err){ console.error('Retry failed:',err); alert('Thử lại thất bại: '+(err.message||err.code)); }
+    };
   }
 });
 
@@ -172,7 +197,57 @@ btnLogout.onclick = async ()=>{
 };
 
 function renderProfile(data){
-  profile.innerHTML = `<div><strong>${me.displayName}</strong></div><div class="small">@${me.username}</div>`;
+  profile.innerHTML = `<div><strong>${me.displayName}</strong></div><div class="small">@${me.username}</div>` +
+    `<div style="margin-top:8px"><button id="btnDbTest" class="btn ghost">Kiểm tra DB</button></div>` +
+    `<div id="dbTestOutput" class="small" style="margin-top:8px;color:#f4f4f4"></div>`;
+  attachDbTest();
+}
+
+function attachDbTest(){
+  const btn = document.getElementById('btnDbTest');
+  if(!btn) return;
+  if(btn._attached) return; // avoid duplicate handlers
+  btn._attached = true;
+  btn.onclick = async ()=>{
+    const out = document.getElementById('dbTestOutput');
+    out.innerText = 'Đang kiểm tra...';
+    try {
+      if(!auth || !auth.currentUser){
+        out.innerText = 'Chưa xác thực (no auth). Vui lòng đăng nhập lại.';
+        console.warn('DB Test: no auth currentUser');
+        return;
+      }
+      const uid = auth.currentUser.uid;
+      console.debug('DB Test: uid=', uid);
+      out.innerText = 'UID: ' + uid + '\nLấy token...';
+      try {
+        const token = await auth.currentUser.getIdToken(/* forceRefresh */ true);
+        console.debug('DB Test: token (first 40 chars):', token && token.slice && token.slice(0,40));
+        out.innerText = out.innerText + '\nToken OK (cắt)';
+      } catch(terr){
+        console.error('DB Test: token error', terr);
+        out.innerText = out.innerText + '\nLỗi lấy token: ' + (terr.message || terr.code || terr);
+      }
+
+      out.innerText = out.innerText + '\nThử đọc /users/' + uid;
+      try {
+        const snap = await get(ref(db, `users/${uid}`));
+        const val = snap.val();
+        console.debug('DB Test read result:', val);
+        if(val) {
+          out.innerText = out.innerText + '\nOK — user record found: ' + JSON.stringify({username: val.username, displayName: val.displayName});
+        } else {
+          out.innerText = out.innerText + '\nKhông tìm thấy user record (null)';
+        }
+      } catch(dbErr){
+        console.error('DB Test read error:', dbErr);
+        out.innerText = out.innerText + '\nLỗi khi đọc DB:\n' + (dbErr.code || '') + ' - ' + (dbErr.message || dbErr);
+      }
+    } catch(e){
+      console.error('DB Test unexpected error:', e);
+      document.getElementById('dbTestOutput').innerText = 'Lỗi không mong đợi: ' + (e.message || e);
+    }
+  };
 }
 
 function watchFriends(){
