@@ -3,52 +3,89 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Register</title>
+<title>Đăng ký</title>
 <style>
-body{background:#0b1b2b;color:#e8eaed;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-.container{background:#12161a;padding:20px;border-radius:12px;max-width:360px;width:100%;text-align:center}
-input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:none;background:#0b1115;color:#e8eaed}
-button{padding:10px 14px;border:none;border-radius:6px;background:#2196f3;color:#fff;cursor:pointer;width:100%}
-button:hover{opacity:0.9}
-a{color:#2196f3;text-decoration:none;display:block;margin-top:10px}
+body{margin:0;background:#0b1b2b;color:#e8eaed;font-family:Inter,Segoe UI,Arial;display:flex;align-items:center;justify-content:center;height:100vh}
+.card{background:#101820;padding:24px;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,0.5);width:300px}
+input{width:100%;padding:10px;margin-bottom:12px;border-radius:8px;border:none;background:#0b1115;color:#e8eaed}
+button{width:100%;padding:10px;border:none;border-radius:8px;background:#2196f3;color:#fff;cursor:pointer}
+a{color:#2196f3;text-decoration:none;display:block;text-align:center;margin-top:12px}
 </style>
 </head>
 <body>
-<div class="container">
+
+<div class="card">
 <h2>Đăng ký</h2>
-<input id="username" placeholder="Username">
-<input id="password" type="password" placeholder="Password">
+<input type="text" id="username" placeholder="Tên đăng nhập">
+<input type="text" id="displayName" placeholder="Tên hiển thị">
+<input type="password" id="password" placeholder="Mật khẩu">
 <button id="btnRegister">Đăng ký</button>
-<a href="login.html">Đã có tài khoản? Đăng nhập</a>
-<div id="msg" style="margin-top:10px;color:#f44"></div>
+<a href="login.html">Quay lại đăng nhập</a>
+<div id="msg" style="margin-top:8px;font-size:13px;color:#f44"></div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
-<script>
-const firebaseConfig = {/* điền config của bạn */};
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, get, set } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-const usernameInput = document.getElementById('username');
-const passwordInput = document.getElementById('password');
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const username = document.getElementById('username');
+const displayName = document.getElementById('displayName');
+const password = document.getElementById('password');
 const btnRegister = document.getElementById('btnRegister');
 const msg = document.getElementById('msg');
 
 btnRegister.onclick = async ()=>{
-  const u = usernameInput.value.trim();
-  const p = passwordInput.value.trim();
-  if(!u || !p){ msg.innerText="Nhập username và password"; return; }
+  const u = username.value.trim();
+  const d = displayName.value.trim();
+  const p = password.value;
+  if(!u||!d||!p){ msg.innerText='Nhập đủ thông tin'; return; }
 
-  const snapshot = await db.ref('users').orderByChild('username').equalTo(u).once('value');
-  if(snapshot.exists()){ msg.innerText="Username đã tồn tại"; return; }
+  try {
+    // Check if username already exists
+    const usersSnap = await get(ref(db, 'users'));
+    const users = usersSnap.val() || {};
+    for(const uid in users){
+      if(users[uid].username === u){ 
+        msg.innerText='Tên đăng nhập đã tồn tại'; 
+        return; 
+      }
+    }
 
-  const newUserRef = db.ref('users').push();
-  await newUserRef.set({ username:u, password:p, displayName:u });
-  msg.style.color="#0f0";
-  msg.innerText="Đăng ký thành công! Chuyển hướng...";
-  setTimeout(()=>location.href='login.html',1000);
+    // Create Firebase auth user with email=username@app.local
+    const email = u + '@app.local';
+    const userCred = await createUserWithEmailAndPassword(auth, email, p);
+    const uid = userCred.user.uid;
+
+    // Save user data to database
+    await set(ref(db, `users/${uid}`), {
+      username: u,
+      displayName: d,
+      email: email,
+      friends: {}
+    });
+
+    msg.innerText='Đăng ký thành công!';
+    msg.style.color='#4caf50';
+    setTimeout(() => location.href='login.html', 1500);
+  } catch(e) {
+    console.error('Register error:', e);
+    if(e.code === 'auth/email-already-in-use') {
+      msg.innerText='Email đã được dùng';
+    } else {
+      msg.innerText='Lỗi: ' + e.message;
+    }
+  }
 };
+
+onAuthStateChanged(auth, user=>{
+  if(user) location.href="index.html";
+});
 </script>
 </body>
 </html>

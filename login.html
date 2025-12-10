@@ -3,54 +3,80 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Login</title>
+<title>Đăng nhập</title>
 <style>
-body{background:#0b1b2b;color:#e8eaed;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-.container{background:#12161a;padding:20px;border-radius:12px;max-width:360px;width:100%;text-align:center}
-input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:none;background:#0b1115;color:#e8eaed}
-button{padding:10px 14px;border:none;border-radius:6px;background:#2196f3;color:#fff;cursor:pointer;width:100%}
-button:hover{opacity:0.9}
-a{color:#2196f3;text-decoration:none;display:block;margin-top:10px}
+body{margin:0;background:#0b1b2b;color:#e8eaed;font-family:Inter,Segoe UI,Arial;display:flex;align-items:center;justify-content:center;height:100vh}
+.card{background:#101820;padding:24px;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,0.5);width:300px}
+input{width:100%;padding:10px;margin-bottom:12px;border-radius:8px;border:none;background:#0b1115;color:#e8eaed}
+button{width:100%;padding:10px;border:none;border-radius:8px;background:#2196f3;color:#fff;cursor:pointer}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.1)}
+a{color:#2196f3;text-decoration:none;display:block;text-align:center;margin-top:12px}
 </style>
 </head>
 <body>
-<div class="container">
+
+<div class="card">
 <h2>Đăng nhập</h2>
-<input id="username" placeholder="Username">
-<input id="password" type="password" placeholder="Password">
-<button id="btnLogin">Login</button>
+<input type="text" id="username" placeholder="Tên đăng nhập">
+<input type="password" id="password" placeholder="Mật khẩu">
+<button id="btnLogin">Đăng nhập</button>
 <a href="register.html">Chưa có tài khoản? Đăng ký</a>
-<div id="msg" style="margin-top:10px;color:#f44"></div>
+<div id="msg" style="margin-top:8px;font-size:13px;color:#f44"></div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
-<script>
-const firebaseConfig = {/* điền config của bạn */};
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
-const usernameInput = document.getElementById('username');
-const passwordInput = document.getElementById('password');
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const username = document.getElementById('username');
+const password = document.getElementById('password');
 const btnLogin = document.getElementById('btnLogin');
 const msg = document.getElementById('msg');
 
 btnLogin.onclick = async ()=>{
-  const u = usernameInput.value.trim();
-  const p = passwordInput.value.trim();
-  if(!u || !p){ msg.innerText="Nhập username và password"; return; }
-
-  const snapshot = await db.ref('users').orderByChild('username').equalTo(u).once('value');
-  const val = snapshot.val();
-  if(!val){ msg.innerText="Tài khoản không tồn tại"; return; }
-
-  const userKey = Object.keys(val)[0];
-  if(val[userKey].password !== p){ msg.innerText="Sai mật khẩu"; return; }
-
-  localStorage.setItem('uid', userKey);
-  localStorage.setItem('username', u);
-  location.href='index.html';
+  const u = username.value.trim();
+  const p = password.value;
+  if(!u || !p){ msg.innerText='Vui lòng nhập đủ thông tin'; return; }
+  
+  try {
+    // Get user by username to find email
+    const usersSnap = await get(ref(db, 'users'));
+    const users = usersSnap.val() || {};
+    let userEmail = null;
+    let displayName = null;
+    
+    for(const uid in users){
+      if(users[uid].username === u){
+        userEmail = users[uid].email;
+        displayName = users[uid].displayName;
+        break;
+      }
+    }
+    
+    if(!userEmail){
+      msg.innerText='Tên đăng nhập không tồn tại';
+      return;
+    }
+    
+    // Login with email and password
+    await signInWithEmailAndPassword(auth, userEmail, p);
+    msg.innerText='Đăng nhập thành công!';
+    location.href='index.html';
+  } catch(e){
+    console.error('Login error:', e);
+    msg.innerText='Sai mật khẩu';
+  }
 };
+
+onAuthStateChanged(auth, user=>{
+  if(user) location.href="index.html";
+});
 </script>
 </body>
 </html>

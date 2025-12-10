@@ -83,7 +83,14 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
 <script>
-const firebaseConfig = {/* điền config của bạn */};
+const firebaseConfig = {   apiKey: "AIzaSyDAtjOUgMkrZ0FRIaod0QV9b03qZZnlhu0",
+  authDomain: "messend-online.firebaseapp.com",
+  databaseURL: "https://messend-online-default-rtdb.firebaseio.com",
+  projectId: "messend-online",
+  storageBucket: "messend-online.appspot.com",
+  messagingSenderId: "103927627337",
+  appId: "1:103927627337:web:f5347fc34dd8de4ee00998",
+  measurementId: "G-VV5TBKZ43B"};
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
