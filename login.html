@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Đăng nhập</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%2312192a'/%3E%3Ctext x='50'%20y='58' font-size='52' text-anchor='middle' fill='%23ffffff' font-family='Arial'%3EM%3C/text%3E%3C/svg%3E">
 <style>
 body{margin:0;background:#0b1b2b;color:#e8eaed;font-family:Inter,Segoe UI,Arial;display:flex;align-items:center;justify-content:center;height:100vh}
 .card{background:#101820;padding:24px;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,0.5);width:300px}
@@ -45,6 +46,9 @@ btnLogin.onclick = async ()=>{
   if(!u || !p){ msg.innerText='Vui lòng nhập đủ thông tin'; return; }
   
   try {
+    msg.innerText='Đang đăng nhập...';
+    msg.style.color='#9fb0bd';
+    
     // Get user by username to find email
     const usersSnap = await get(ref(db, 'users'));
     const users = usersSnap.val() || {};
@@ -60,17 +64,26 @@ btnLogin.onclick = async ()=>{
     }
     
     if(!userEmail){
+      msg.style.color='#f44';
       msg.innerText='Tên đăng nhập không tồn tại';
       return;
     }
     
     // Login with email and password
     await signInWithEmailAndPassword(auth, userEmail, p);
+    msg.style.color='#4caf50';
     msg.innerText='Đăng nhập thành công!';
-    location.href='index.html';
+    setTimeout(() => location.href='index.html', 1000);
   } catch(e){
     console.error('Login error:', e);
-    msg.innerText='Sai mật khẩu';
+    msg.style.color='#f44';
+    if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-email') {
+      msg.innerText='Tên đăng nhập hoặc mật khẩu không đúng';
+    } else if(e.message && e.message.toLowerCase().includes('permission')) {
+      msg.innerText='Lỗi quyền truy cập dữ liệu. Vui lòng kiểm tra cấu hình Firebase.';
+    } else {
+      msg.innerText='Lỗi đăng nhập: ' + (e.message || e.code);
+    }
   }
 };
 

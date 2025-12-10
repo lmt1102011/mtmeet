@@ -8,6 +8,10 @@
         ".write": "auth != null && auth.uid === $uid"
       }
     },
+    "usernameIndex": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "friendRequests": {
       ".read": "auth != null",
       ".write": "auth != null",

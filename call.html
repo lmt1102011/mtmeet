@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>MTMET — Video Call PRO</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%2312192a'/%3E%3Ctext x='50'%20y='58' font-size='52' text-anchor='middle' fill='%23ffffff' font-family='Arial'%3EM%3C/text%3E%3C/svg%3E">
 <style>
 :root{--bg:#0b1b2b;--surface:#12161a;--accent:#2196f3;--muted:#9fb0bd;--text:#e8eaed;--danger:#b71c1c;--tile-radius:14px}
 body{margin:0;height:100vh;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial;display:flex;flex-direction:column}
@@ -80,19 +81,46 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js"></script>
-<script>
-const firebaseConfig = {   apiKey: "AIzaSyDAtjOUgMkrZ0FRIaod0QV9b03qZZnlhu0",
-  authDomain: "messend-online.firebaseapp.com",
-  databaseURL: "https://messend-online-default-rtdb.firebaseio.com",
-  projectId: "messend-online",
-  storageBucket: "messend-online.appspot.com",
-  messagingSenderId: "103927627337",
-  appId: "1:103927627337:web:f5347fc34dd8de4ee00998",
-  measurementId: "G-VV5TBKZ43B"};
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, set, onValue, push, get, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+console.debug('call.html loaded with DB URL:', window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL);
+
+// Check auth state and wait for user data to load
+let authReadyPromise = new Promise((resolve) => {
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      location.href = 'login.html';
+      return;
+    }
+    window.currentUser = { uid: user.uid };
+    console.debug('call.html auth user:', user.uid);
+    
+    // Load user display name from DB
+    try {
+      const userSnap = await get(ref(db, `users/${user.uid}`));
+      const userData = userSnap.val();
+      if (userData) {
+        window.currentUser.displayName = userData.displayName;
+        window.currentUser.username = userData.username;
+        console.debug('call.html user data loaded:', window.currentUser);
+      } else {
+        console.warn('User data not found for:', user.uid);
+      }
+    } catch (e) {
+      console.error('Error loading user data:', e);
+    }
+    resolve(window.currentUser);
+  });
+});
+
 
 const stage = document.getElementById('stage');
 const meInfo = document.getElementById('meInfo');
@@ -107,12 +135,31 @@ const friendListDiv = document.getElementById('friendList');
 const closeInvite = document.getElementById('closeInvite');
 
 let roomId = new URLSearchParams(location.search).get('room') || "demo-room";
-let uid = localStorage.getItem('uid');
-let username = localStorage.getItem('username');
-if(!uid){ location.href='login.html'; }
 
-meName.innerText = username;
-meInfo.innerText = uid;
+// Will be filled from Firebase auth (via Promise)
+let uid = null;
+let username = null;
+let displayName = null;
+
+// Wait for auth to be ready
+authReadyPromise.then(() => {
+  const user = window.currentUser;
+  uid = user.uid;
+  username = user.username;
+  displayName = user.displayName || user.username;
+  
+  console.debug('Auth ready - uid:', uid, 'username:', username, 'displayName:', displayName);
+  
+  meName.innerText = displayName;
+  meInfo.innerText = uid;
+  
+  // Enable the SET button now that auth is ready
+  requestPermBtn.disabled = false;
+  requestPermBtn.style.opacity = '1';
+}).catch(err => {
+  console.error('Failed to load auth:', err);
+  alert('Lỗi tải thông tin người dùng');
+});
 
 let localStream=null;
 let localMicEnabled=false;
@@ -142,91 +189,187 @@ function createTile(uid,name){
 }
 
 function requestPermissions(){
+  if (!username || !uid) {
+    alert('Chưa tải thông tin người dùng');
+    return;
+  }
+  
   navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(stream=>{
-    localStream=stream; localCamEnabled=true; localMicEnabled=true;
+    console.log('✓ Đã cấp quyền camera & mic');
+    localStream=stream; 
+    localCamEnabled=true; 
+    localMicEnabled=true;
+    
     tiles['me']=createTile('me', username);
     tiles['me'].video.srcObject=localStream;
+    
+    // Remove dim and no-perm classes
     camBtn.classList.remove('dim','no-perm');
     muteBtn.classList.remove('dim','no-perm');
+    camBtn.classList.add('mic-active');
+    muteBtn.classList.add('mic-active');
+    
     startMicAnalyzer('me',localStream);
     joinRoom();
   }).catch(e=>{
-    console.error('getUserMedia error:',e);
-    if(e.name==="NotAllowedError"){ camBtn.classList.add('no-perm'); muteBtn.classList.add('no-perm'); alert("Vui lòng cấp quyền Camera & Micro!"); }
+    console.error('✗ getUserMedia error:', e);
+    if(e.name==="NotAllowedError" || e.name === "PermissionDeniedError"){ 
+      camBtn.classList.add('no-perm'); 
+      muteBtn.classList.add('no-perm'); 
+      alert("Vui lòng cấp quyền Camera & Microphone trong cài đặt trình duyệt!"); 
+    } else {
+      alert("Lỗi truy cập camera/mic: " + e.message);
+    }
   });
 }
 
-muteBtn.onclick = ()=>{ if(!localStream) return; localMicEnabled=!localMicEnabled; localStream.getAudioTracks()[0].enabled=localMicEnabled; };
-camBtn.onclick = ()=>{ if(!localStream) return; localCamEnabled=!localCamEnabled; localStream.getVideoTracks()[0].enabled=localCamEnabled; };
-leaveBtn.onclick = ()=>{ Object.values(pcs).forEach(pc=>pc.close()); localStorage.removeItem('uid'); localStorage.removeItem('username'); location.href="login.html"; };
-requestPermBtn.onclick = requestPermissions;
+muteBtn.onclick = ()=>{ 
+  if(!localStream) { 
+    console.warn('No local stream yet'); 
+    return; 
+  } 
+  localMicEnabled = !localMicEnabled; 
+  localStream.getAudioTracks().forEach(t => t.enabled = localMicEnabled);
+  muteBtn.classList.toggle('mic-active', localMicEnabled);
+};
+
+camBtn.onclick = ()=>{ 
+  if(!localStream) { 
+    console.warn('No local stream yet'); 
+    return; 
+  } 
+  localCamEnabled = !localCamEnabled; 
+  localStream.getVideoTracks().forEach(t => t.enabled = localCamEnabled);
+  camBtn.classList.toggle('dim', !localCamEnabled);
+};
+
+leaveBtn.onclick = async ()=>{ 
+  Object.values(pcs).forEach(pc=>pc.close()); 
+  if (uid) {
+    try {
+      await remove(ref(db, `rooms/${roomId}/participants/${uid}`));
+    } catch(e) {
+      console.error('Error removing participant:', e);
+    }
+  }
+  location.href="index.html"; 
+};
+
+requestPermBtn.onclick = ()=>{
+  if (!uid) {
+    console.error('uid not yet loaded');
+    alert('Đang tải thông tin người dùng, vui lòng chờ...');
+    return;
+  }
+  requestPermissions();
+};
 
 inviteBtn.onclick=()=>{ invitePopup.classList.remove('hidden'); loadFriends(); };
 closeInvite.onclick=()=>{ invitePopup.classList.add('hidden'); }
 
 async function loadFriends(){
   friendListDiv.innerHTML='<div style="color:#ccc;padding:10px;">Đang tải...</div>';
-  const snapshot = await db.ref('users').once('value');
-  const data = snapshot.val()||{};
-  friendListDiv.innerHTML='';
-  Object.keys(data).forEach(fid=>{
-    if(fid===uid) return;
-    const f = data[fid];
-    const item = elt('div',{class:'item'});
-    const avatar = elt('div',{class:'friendAvatar'}, f.username[0].toUpperCase());
-    const name = elt('div',{}, f.username);
-    const btn = elt('button',{class:'inviteBtn'},'Mời');
-    btn.onclick = async ()=>{
-      const inviteKey = 'i_'+Math.random().toString(36).slice(2,9);
-      await db.ref(`invites/${fid}/${inviteKey}`).set({from:uid,fromName:username,room:roomId,time:Date.now()});
-      btn.classList.add('sent'); btn.innerText='Đã gửi'; btn.disabled=true;
-    };
-    item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
-    friendListDiv.appendChild(item);
-  });
+  try {
+    // Load current user's friends list
+    const myFriendsSnap = await get(ref(db, `users/${uid}/friends`));
+    const myFriends = myFriendsSnap.val() || {};
+    const friendIds = Object.keys(myFriends);
+    
+    if(friendIds.length === 0){
+      friendListDiv.innerHTML='<div style="color:#ccc;padding:10px;">Bạn chưa có bạn bè nào</div>';
+      return;
+    }
+    
+    // Load friend details from users node
+    const usersSnap = await get(ref(db, 'users'));
+    const allUsers = usersSnap.val() || {};
+    friendListDiv.innerHTML='';
+    
+    friendIds.forEach(fid=>{
+      const f = allUsers[fid];
+      if(!f) return; // Skip if friend data not found
+      
+      const item = elt('div',{class:'item'});
+      const avatar = elt('div',{class:'friendAvatar'}, (f.displayName || f.username || 'U')[0].toUpperCase());
+      const name = elt('div',{}, f.displayName || f.username);
+      const btn = elt('button',{class:'inviteBtn'},'Mời');
+      btn.onclick = async ()=>{
+        const inviteKey = 'i_'+Math.random().toString(36).slice(2,9);
+        await push(ref(db, `invites/${fid}`), {from: uid, fromName: displayName, room: roomId, time: Date.now()});
+        btn.classList.add('sent'); btn.innerText='Đã gửi'; btn.disabled=true;
+      };
+      item.appendChild(avatar); item.appendChild(name); item.appendChild(btn);
+      friendListDiv.appendChild(item);
+    });
+  } catch(e) {
+    console.error('loadFriends error:', e);
+    friendListDiv.innerHTML='<div style="color:#f44;">Lỗi tải danh sách bạn</div>';
+  }
 }
 
 function joinRoom(){
-  const participantsRef = db.ref('rooms/'+roomId+'/participants');
-  const signalsRef = db.ref('rooms/'+roomId+'/signals');
-  participantsRef.child(uid).set({name:username});
-  participantsRef.on('value',snap=>{
+  const participantsRef = ref(db, 'rooms/'+roomId+'/participants');
+  const signalsRef = ref(db, 'rooms/'+roomId+'/signals');
+  
+  set(ref(db, `rooms/${roomId}/participants/${uid}`), {name: displayName || username});
+  
+  onValue(participantsRef, snap=>{
     const data = snap.val()||{};
     Object.keys(data).forEach(pid=>{
       if(pid===uid) return;
-      if(!pcs[pid]) createPeer(pid,data[pid].name);
+      if(!pcs[pid]) createPeer(pid, data[pid].name);
     });
     Object.keys(tiles).forEach(tid=>{
       if(tid!=='me' && !data[tid]){ tiles[tid].el.remove(); delete tiles[tid]; pcs[tid]?.close(); delete pcs[tid]; }
     });
   });
 
-  signalsRef.on('child_added',snap=>{
-    const s=snap.val();
-    if(!s || s.to!==uid) return;
-    handleSignal(s.from,s.type,s.data);
-    signalsRef.child(snap.key).remove();
+  onValue(signalsRef, snap=>{
+    const signals = snap.val();
+    if (!signals) return;
+    Object.entries(signals).forEach(([key, s]) => {
+      if(!s || s.to !== uid) return;
+      handleSignal(s.from, s.type, s.data);
+      remove(ref(db, `rooms/${roomId}/signals/${key}`));
+    });
   });
 }
 
-function createPeer(pid,name){
+function createPeer(pid, name){
   const pc = new RTCPeerConnection();
   pcs[pid]=pc;
-  tiles[pid]=createTile(pid,name);
-  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid,e.streams[0]); };
-  pc.onicecandidate = e=>{ if(e.candidate) db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'candidate',data:e.candidate.toJSON()}); };
+  tiles[pid]=createTile(pid, name);
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+  pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid, e.streams[0]); };
+  pc.onicecandidate = e=>{ if(e.candidate) push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); };
   pc.createOffer().then(o=>{
     pc.setLocalDescription(o);
-    db.ref('rooms/'+roomId+'/signals').push({from:uid,to:pid,type:'offer',data:o.toJSON()});
+    push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o.toJSON()});
   });
 }
 
-function handleSignal(from,type,data){
-  let pc = pcs[from]; if(!pc){ createPeer(from); pc=pcs[from]; }
-  if(type==='offer'){ pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ pc.createAnswer().then(a=>{ pc.setLocalDescription(a); db.ref('rooms/'+roomId+'/signals').push({from:uid,to:from,type:'answer',data:a.toJSON()}); }); }); }
-  else if(type==='answer'){ pc.setRemoteDescription(new RTCSessionDescription(data)); }
-  else if(type==='candidate'){ pc.addIceCandidate(new RTCIceCandidate(data)); }
+function handleSignal(from, type, data){
+  let pc = pcs[from]; 
+  if(!pc){ 
+    // Create peer if we haven't yet; we need the name, so try to get it from tiles or default
+    const peerName = tiles[from]?.badge?.innerText || 'Peer';
+    createPeer(from, peerName); 
+    pc = pcs[from]; 
+  }
+  if(type === 'offer'){ 
+    pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ 
+      pc.createAnswer().then(a=>{ 
+        pc.setLocalDescription(a); 
+        push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a.toJSON()}); 
+      }); 
+    }); 
+  }
+  else if(type === 'answer'){ 
+    pc.setRemoteDescription(new RTCSessionDescription(data)); 
+  }
+  else if(type === 'candidate'){ 
+    pc.addIceCandidate(new RTCIceCandidate(data)); 
+  }
 }
 
 function startMicAnalyzer(pid,stream){
