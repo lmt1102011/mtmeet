@@ -12,14 +12,13 @@
     .container{max-width:1100px;margin:18px auto;display:grid;grid-template-columns:320px 1fr;gap:18px;padding:0 16px}
     .card{background:var(--surface);padding:16px;border-radius:var(--card-radius);box-shadow:0 8px 40px rgba(0,0,0,0.5)}
     h2{margin:0 0 10px}
-    .userItem{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:8px}
+    .userItem,.inboxItem{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:8px}
     .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--accent);color:white;cursor:pointer}
     .btn:hover{opacity:0.95}
     .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent)}
     .muted{color:var(--muted)}
-    .inboxItem{padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:8px}
     input{width:100%;padding:8px;border-radius:8px;background:#0b1115;border:1px solid #17202a;color:var(--text)}
-    .row{display:flex;gap:8px;align-items:center}
+    .sectionTitle{font-weight:700;margin-bottom:6px}
     .small{font-size:13px;color:var(--muted)}
   </style>
 </head>
@@ -42,20 +41,20 @@
       <div class="card">
         <h2>Danh sách bạn bè</h2>
         <div id="friendsList">Đang tải...</div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
-        <div>
-          <div class="row">
-            <input id="searchUser" placeholder="Tìm người (username)">
-            <button id="btnSearch" class="btn ghost">Tìm</button>
-          </div>
-          <div id="searchResults" style="margin-top:10px"></div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.05);margin:12px 0"/>
+        <div class="row">
+          <input id="searchUser" placeholder="Tìm người (username)">
+          <button id="btnSearch" class="btn ghost">Tìm</button>
         </div>
+        <div id="searchResults" style="margin-top:10px"></div>
       </div>
 
       <div style="height:18px"></div>
       <div class="card">
         <h2>Hộp thư</h2>
-        <div id="inbox">Đang tải...</div>
+        <div id="friendInbox">Đang tải...</div>
+        <div style="height:12px"></div>
+        <div id="roomInbox"></div>
       </div>
     </div>
 
@@ -73,19 +72,18 @@
     </div>
   </div>
 
+
   <script src="firebase-config.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
     import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-    import {
-      getDatabase, ref, set, push, onValue, get, remove
-    } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+    import { getDatabase, ref, set, push, onValue, get, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
 
     const app = initializeApp(window.FIREBASE_CONFIG);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // UI elements
+    // UI refs
     const meDisplay = document.getElementById('meDisplay');
     const btnCreateRoom = document.getElementById('btnCreateRoom');
     const btnLogout = document.getElementById('btnLogout');
@@ -93,232 +91,167 @@
     const searchUser = document.getElementById('searchUser');
     const btnSearch = document.getElementById('btnSearch');
     const searchResults = document.getElementById('searchResults');
-    const inbox = document.getElementById('inbox');
+    const friendInbox = document.getElementById('friendInbox');
+    const roomInbox = document.getElementById('roomInbox');
     const profile = document.getElementById('profile');
-    const roomsArea = document.getElementById('roomsArea');
 
     let me = null;
     let firstCheck = true;
 
-    // Utility helpers
-    const elt = (t, attrs={}, txt='') => {
-      const e = document.createElement(t);
-      for(const k in attrs) e.setAttribute(k, attrs[k]);
-      if(txt) e.innerText = txt;
+    const elt = (t, attrs={}, txt='')=>{
+      const e=document.createElement(t);
+      for(const k in attrs) e.setAttribute(k,attrs[k]);
+      if(txt) e.innerText=txt;
       return e;
     };
 
-    function showError(msg){ alert(msg); console.warn(msg); }
+    function showError(msg){ console.warn(msg); alert(msg); }
 
-    // Wait for auth state properly (prevent immediate redirect)
-    onAuthStateChanged(auth, async user => {
+    onAuthStateChanged(auth, async user=>{
       if(user){
         firstCheck = false;
         const uid = user.uid;
-        try{
-          const snap = await get(ref(db, `users/${uid}`));
-          const data = snap.val();
-          if(!data){
-            showError('Không tìm thấy profile. Về trang đăng nhập.');
-            await signOut(auth);
-            location.href = 'login.html';
-            return;
-          }
-          me = { uid, username: data.username, displayName: data.displayName };
-          meDisplay.innerText = me.displayName;
-          btnLogout.style.display = '';
-          btnCreateRoom.disabled = false;
-          renderProfile(data);
-          watchFriends();
-          watchInbox();
-        }catch(e){
-          console.error(e);
-          showError('Lỗi khi tải profile.');
+        const snap = await get(ref(db, `users/${uid}`));
+        const data = snap.val();
+        if(!data){
+          await signOut(auth);
+          return location.href='login.html';
         }
+        me = { uid, username:data.username, displayName:data.displayName };
+        meDisplay.innerText = me.displayName;
+        btnLogout.style.display='';
+        btnCreateRoom.disabled=false;
+        renderProfile(data);
+        watchFriends();
+        watchInbox();
       } else {
-        // If we've already checked once and there's still no user -> redirect
-        if(!firstCheck){
-          location.href = 'login.html';
-        }
+        if(!firstCheck) location.href='login.html';
       }
     });
 
-    btnLogout.onclick = async ()=>{ await signOut(auth); localStorage.removeItem('uid'); location.href='login.html'; };
+    btnLogout.onclick = async ()=>{ await signOut(auth); location.href='login.html'; };
 
     function renderProfile(data){
-      profile.innerHTML = '';
-      const name = elt('div', {}, data.displayName || '(No name)');
-      const idline = elt('div', {class:'small'}, `@${data.username || ''}`);
-      profile.appendChild(name); profile.appendChild(idline);
+      profile.innerHTML = `<div><strong>${data.displayName}</strong></div>
+        <div class="small">@${data.username}</div>`;
     }
 
-    // ---------- Friends (watch using onValue) ----------
+    // FRIENDS LIST
     function watchFriends(){
-      if(!me) return;
-      const fRef = ref(db, `users/${me.uid}/friends`);
-      onValue(fRef, async snapshot => {
-        const val = snapshot.val() || {};
+      onValue(ref(db, `users/${me.uid}/friends`), async snap=>{
+        const val = snap.val() || {};
         friendsList.innerHTML = '';
-        const ids = Object.keys(val || {});
-        if(ids.length === 0){
-          friendsList.innerHTML = '<div class="muted">Bạn chưa có bạn bè</div>';
-          return;
-        }
-        // For each friend uid, fetch profile (non-blocking)
+        const ids = Object.keys(val);
+        if(ids.length === 0) return friendsList.innerHTML='<div class="muted">Chưa có bạn bè</div>';
         for(const fid of ids){
-          try{
-            const s = await get(ref(db, `users/${fid}`));
-            const u = s.val();
-            if(!u) continue;
-            const item = elt('div', {class:'userItem'});
-            const left = elt('div',{}, `${u.displayName} (${u.username})`);
-            const right = elt('div');
-            const btnInvite = elt('button', {class:'btn'}, 'Mời');
-            btnInvite.onclick = ()=> inviteToRoom(fid);
-            right.appendChild(btnInvite);
-            item.appendChild(left); item.appendChild(right);
-            friendsList.appendChild(item);
-          }catch(e){
-            console.warn('fetch friend profile failed', e);
-          }
+          const data = (await get(ref(db, `users/${fid}`))).val();
+          if(!data) continue;
+          const row=elt('div',{class:'userItem'});
+          row.innerHTML=`<div>${data.displayName} (${data.username})</div>`;
+          const btn = elt('button',{class:'btn'},'Mời');
+          btn.onclick=()=>inviteToRoom(fid);
+          row.appendChild(btn);
+          friendsList.appendChild(row);
         }
       });
     }
 
-    // ---------- Search users (debounced simple) ----------
-    let searchTimer = null;
-    btnSearch.onclick = ()=> searchNow();
-    searchUser.addEventListener('keydown', e=>{ if(e.key==='Enter') searchNow(); });
+    // SEARCH
+    btnSearch.onclick=searchNow;
+    searchUser.onkeydown=e=>{if(e.key==='Enter') searchNow()};
 
     async function searchNow(){
-      const q = (searchUser.value || '').trim().toLowerCase();
-      searchResults.innerHTML = '';
+      const q = searchUser.value.trim().toLowerCase();
+      searchResults.innerHTML='';
       if(!q) return;
-      // Naive approach: read all users (for demo). For production use index or cloud function.
-      const snap = await get(ref(db, 'users'));
-      const all = snap.val() || {};
-      const keys = Object.keys(all);
-      for(const uid of keys){
-        const u = all[uid];
-        if(!u || !u.username) continue;
-        if(uid === (me && me.uid)) continue;
-        if(u.username.includes(q) || (u.displayName && u.displayName.toLowerCase().includes(q))){
-          const row = elt('div', {class:'userItem'});
-          row.innerHTML = `<div>${u.displayName} (${u.username})</div>`;
-          const btn = elt('button',{class:'btn ghost'}, 'Kết bạn');
-          btn.onclick = ()=> sendFriendRequest(uid, u);
+      const all = (await get(ref(db,'users'))).val()||{};
+      for(const [uid,u] of Object.entries(all)){
+        if(uid===me.uid || !u.username) continue;
+        if(!u.username.toLowerCase().includes(q)
+        && !(u.displayName||'').toLowerCase().includes(q)) continue;
+
+        const row = elt('div',{class:'userItem'});
+        row.innerHTML = `<div>${u.displayName} (${u.username})</div>`;
+
+        if(u.friends && u.friends[me.uid]){
+          row.appendChild(elt('div',{class:'muted'},'Đã kết bạn'));
+        } else {
+          const btn = elt('button',{class:'btn ghost'},'Kết bạn');
+          btn.onclick=()=>sendFriendRequest(uid,u);
           row.appendChild(btn);
-          searchResults.appendChild(row);
         }
+        searchResults.appendChild(row);
       }
     }
 
-    // ---------- Send friend request (use push to avoid overwrite) ----------
-    async function sendFriendRequest(targetUid, targetUserObj){
-      if(!me) return showError('Chưa đăng nhập');
-      try{
-        const reqRef = ref(db, `friendRequests/${targetUid}`);
-        const p = await push(reqRef, {
-          from: me.uid,
-          fromName: me.displayName,
-          fromUsername: me.username,
-          time: Date.now()
-        });
-        // optional: give feedback
-        alert('Đã gửi lời mời tới ' + (targetUserObj.displayName || targetUserObj.username));
-      }catch(e){
-        console.error(e);
-        showError('Không thể gửi lời mời');
-      }
+    async function sendFriendRequest(targetUid,u){
+      await push(ref(db, `friendRequests/${targetUid}`), {
+        from: me.uid, fromName: me.displayName,
+        fromUsername: me.username, time:Date.now()
+      });
+      alert('Đã gửi lời mời');
     }
 
-    // ---------- Inbox: friend requests & invites ----------
+    // INBOX
     function watchInbox(){
-      if(!me) return;
-      // friend requests
-      const frRef = ref(db, `friendRequests/${me.uid}`);
-      onValue(frRef, snapshot => {
-        const val = snapshot.val() || {};
-        inbox.innerHTML = '<div style="font-weight:700;margin-bottom:6px">Lời mời kết bạn</div>';
-        const entries = Object.entries(val || {});
-        if(entries.length === 0) inbox.innerHTML += '<div class="muted">Không có lời mời</div>';
-        for(const [key, req] of entries){
-          const el = elt('div',{class:'inboxItem'});
-          el.innerHTML = `<div>${req.fromName} (${req.fromUsername})</div>`;
-          const accept = elt('button',{class:'btn'}, 'Chấp nhận');
-          const decline = elt('button',{class:'btn ghost'}, 'Từ chối');
-          accept.onclick = async ()=>{
-            try{
-              // add both to friends
-              await set(ref(db, `users/${me.uid}/friends/${req.from}`), true);
-              await set(ref(db, `users/${req.from}/friends/${me.uid}`), true);
-              // remove the request
-              await remove(ref(db, `friendRequests/${me.uid}/${key}`));
-            }catch(e){ console.error(e); showError('Lỗi khi chấp nhận'); }
+      // FRIEND REQUESTS
+      onValue(ref(db, `friendRequests/${me.uid}`), snap=>{
+        const val=snap.val()||{};
+        friendInbox.innerHTML='<div class="sectionTitle">Lời mời kết bạn</div>';
+        const entries=Object.entries(val);
+        if(entries.length===0) friendInbox.innerHTML+='<div class="muted">Không có</div>';
+        entries.forEach(([k,it])=>{
+          const row = elt('div',{class:'inboxItem'});
+          row.innerHTML=`<div>${it.fromName} (${it.fromUsername})</div>`;
+          const ac=elt('button',{class:'btn'},'Chấp nhận');
+          ac.onclick=async()=>{
+            await set(ref(db,`users/${me.uid}/friends/${it.from}`),true);
+            await set(ref(db,`users/${it.from}/friends/${me.uid}`),true);
+            await remove(ref(db,`friendRequests/${me.uid}/${k}`));
           };
-          decline.onclick = async ()=> { await remove(ref(db, `friendRequests/${me.uid}/${key}`)); };
-          el.appendChild(accept); el.appendChild(decline);
-          inbox.appendChild(el);
-        }
+          const de=elt('button',{class:'btn ghost'},'Từ chối');
+          de.onclick=()=>remove(ref(db,`friendRequests/${me.uid}/${k}`));
+          row.appendChild(ac);row.appendChild(de);
+          friendInbox.appendChild(row);
+        });
       });
 
-      // invites to rooms
-      const invRef = ref(db, `invites/${me.uid}`);
-      onValue(invRef, snapshot=>{
-        const val = snapshot.val() || {};
-        inbox.innerHTML += '<div style="font-weight:700;margin-top:12px;margin-bottom:6px">Lời mời phòng</div>';
-        const entries = Object.entries(val || {});
-        if(entries.length === 0) inbox.innerHTML += '<div class="muted">Không có lời mời phòng</div>';
-        for(const [k, it] of entries){
-          const el = elt('div',{class:'inboxItem'});
-          el.innerHTML = `<div>${it.fromName} mời bạn vào phòng <strong>${it.room}</strong></div>`;
-          const joinBtn = elt('button',{class:'btn'}, 'Tham gia');
-          const ignore = elt('button',{class:'btn ghost'}, 'Bỏ qua');
-          joinBtn.onclick = ()=> { location.href = `call.html?room=${encodeURIComponent(it.room)}`; };
-          ignore.onclick = ()=> remove(ref(db, `invites/${me.uid}/${k}`));
-          el.appendChild(joinBtn); el.appendChild(ignore);
-          inbox.appendChild(el);
-        }
+      // INVITES ROOM
+      onValue(ref(db, `invites/${me.uid}`), snap=>{
+        const val=snap.val()||{};
+        roomInbox.innerHTML='<div class="sectionTitle">Lời mời phòng</div>';
+        const entries=Object.entries(val);
+        if(entries.length===0) roomInbox.innerHTML+='<div class="muted">Không có</div>';
+        entries.forEach(([k,it])=>{
+          const row = elt('div',{class:'inboxItem'});
+          row.innerHTML=`<div>${it.fromName} mời vào <strong>${it.room}</strong></div>`;
+          const join=elt('button',{class:'btn'},'Tham gia');
+          join.onclick=()=>location.href=`call.html?room=${it.room}`;
+          const ignore=elt('button',{class:'btn ghost'},'Bỏ qua');
+          ignore.onclick=()=>remove(ref(db,`invites/${me.uid}/${k}`));
+          row.appendChild(join);row.appendChild(ignore);
+          roomInbox.appendChild(row);
+        });
       });
     }
 
-    // ---------- Create Room (and redirect to call) ----------
-    btnCreateRoom.onclick = async ()=>{
-      if(!me) return showError('Chưa đăng nhập');
-      // create unique room id
-      const roomId = 'room_' + Math.random().toString(36).slice(2,9);
-      try{
-        await set(ref(db, `rooms/${roomId}`), { createdBy: me.uid, createdAt: Date.now() });
-        location.href = `call.html?room=${encodeURIComponent(roomId)}`;
-      }catch(e){
-        console.error(e); showError('Không thể tạo phòng');
-      }
+    // CREATE ROOM
+    btnCreateRoom.onclick=async()=>{
+      const roomId='room_'+Math.random().toString(36).slice(2,9);
+      await set(ref(db,`rooms/${roomId}`),{
+        createdBy:me.uid,createdAt:Date.now()
+      });
+      location.href=`call.html?room=${roomId}`;
     };
 
-    // ---------- Invite to Room (send push invite) ----------
-    async function inviteToRoom(targetUid){
-      if(!me) return showError('Chưa đăng nhập');
-      const room = prompt('Nhập room ID (hoặc tạo phòng trước)');
+    async function inviteToRoom(uid){
+      const room = prompt('Nhập room ID');
       if(!room) return;
-      try{
-        const invRef = ref(db, `invites/${targetUid}`);
-        await push(invRef, { from: me.uid, fromName: me.displayName, room, time: Date.now() });
-        alert('Đã gửi lời mời');
-      }catch(e){ console.error(e); showError('Không thể gửi invite'); }
+      await push(ref(db, `invites/${uid}`),{
+        from:me.uid,fromName:me.displayName,room,time:Date.now()
+      });
+      alert('Đã mời');
     }
-
-    // init: enable search only after me loaded
-    (function initUi(){
-      btnCreateRoom.disabled = true;
-      btnSearch.onclick = searchNow;
-    })();
-
-    // When me is ready, call watchInbox in onAuthStateChanged above
-    // ensure watchInbox is started after me available
-    // watchFriends is started similarly
-
-    // tiny helper for manual testing: expose me
-    window.__MTMET = { getMe: ()=> me };
 
   </script>
 </body>
