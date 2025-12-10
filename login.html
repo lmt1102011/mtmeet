@@ -1,97 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Đăng nhập — MTMET</title>
-  <link rel="stylesheet" href="auth.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MTMET — Đăng nhập</title>
+<style>
+:root{
+  --bg:#0b1b2b;--surface:#101820;--accent:#2196f3;
+  --text:#e8eaed;--muted:#9fb0bd;--radius:12px;
+}
+body{
+  margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial;
+  display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text);
+}
+.card{
+  width:320px;background:var(--surface);padding:20px;border-radius:var(--radius);
+  box-shadow:0 8px 40px rgba(0,0,0,0.5);
+}
+h2{margin:0 0 12px;font-weight:700}
+input{
+  width:100%;padding:10px;border-radius:var(--radius);
+  border:1px solid #1e2a33;background:#0b1115;color:var(--text);
+  margin-bottom:12px;
+}
+button{
+  width:100%;padding:10px;border-radius:var(--radius);border:none;
+  background:var(--accent);color:white;font-size:15px;cursor:pointer;font-weight:600;
+}
+button:hover{opacity:0.9}
+.small{
+  margin-top:12px;font-size:13px;text-align:center;color:var(--muted);
+  cursor:pointer
+}
+.small:hover{color:var(--accent)}
+</style>
 </head>
 <body>
-  <div class="auth-box">
-    <h2>Đăng nhập</h2>
-    <input id="username" placeholder="Tên đăng nhập" autocomplete="off">
-    <input id="password" placeholder="Mật khẩu" type="password">
-    <button id="btnLogin">Đăng nhập</button>
-    <div id="msg"></div>
-    <p>Chưa có tài khoản? <a href="register.html">Đăng ký</a></p>
-  </div>
 
-  <script src="firebase-config.js"></script>
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
-    import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+<div class="card">
+  <h2>Đăng nhập</h2>
+  <input id="username" placeholder="Tên đăng nhập">
+  <input id="password" type="password" placeholder="Mật khẩu">
+  <button id="btnLogin">Đăng nhập</button>
+  <div class="small" onclick="location.href='register.html'">Chưa có tài khoản? Đăng ký</div>
+</div>
 
-    const app = initializeApp(window.FIREBASE_CONFIG);
-    const db = getDatabase(app);
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
 
-    const btn = document.getElementById('btnLogin');
-    const msg = document.getElementById('msg');
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
 
-    btn.onclick = login;
+const usernameEl = document.getElementById('username');
+const passwordEl = document.getElementById('password');
+const btnLogin = document.getElementById('btnLogin');
 
-    async function login(){
-      msg.innerText = "";
+btnLogin.onclick = async ()=>{
+  const username = usernameEl.value.trim();
+  const pw = passwordEl.value.trim();
+  if(!username || !pw) return alert("Nhập đủ thông tin");
 
-      let username = document.getElementById('username').value.trim().toLowerCase();
-      let password = document.getElementById('password').value;
+  const fakeEmail = username + "@mtmet.com"; // Vì Auth cần email
+  try {
+    await signInWithEmailAndPassword(auth, fakeEmail, pw);
+    location.href = "index.html";
+  } catch(e) {
+    alert("Sai tài khoản hoặc mật khẩu!");
+  }
+};
+</script>
 
-      if(!username || !password){
-        msg.innerText = "Nhập đủ thông tin";
-        return;
-      }
-
-      const snap = await get(ref(db, 'users'));
-      const all = snap.val() || {};
-
-      // Tìm user theo username
-      let targetUid = null;
-      let user = null;
-
-      Object.entries(all).forEach(([uid,u])=>{
-        if(u.username === username){
-          targetUid = uid;
-          user = u;
-        }
-      });
-
-      if(!targetUid){
-        msg.innerText = "Sai username hoặc mật khẩu";
-        return;
-      }
-
-      // hash lại mật khẩu người nhập
-      const salt = hexToBytes(user.salt);
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-      const bits = await crypto.subtle.deriveBits({
-        name:"PBKDF2",
-        salt,
-        iterations:100000,
-        hash:"SHA-256"
-      }, key, 256);
-
-      const hashHex = toHex(new Uint8Array(bits));
-
-      if(hashHex !== user.passwordHash){
-        msg.innerText = "Sai username hoặc mật khẩu";
-        return;
-      }
-
-      // Lưu session
-      localStorage.setItem('uid', targetUid);
-      location.href = "index.html";
-    }
-
-    function hexToBytes(hex){
-      const arr = [];
-      for(let i=0;i<hex.length;i+=2){
-        arr.push(parseInt(hex.substr(i,2),16));
-      }
-      return new Uint8Array(arr);
-    }
-    function toHex(buf){
-      return Array.from(buf).map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-  </script>
 </body>
 </html>
