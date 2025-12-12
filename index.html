@@ -500,6 +500,18 @@ onAuthStateChanged(auth, async user => {
       renderProfile(data);
       watchFriends();
       watchInbox();
+      
+      // Watch for account deletion - if profile is deleted, kick user out immediately
+      onValue(ref(db, `users/${uid}`), (snap) => {
+        if (!snap.exists()) {
+          console.warn('User profile was deleted, logging out...');
+          signOut(auth).then(() => {
+            meDisplay.innerText = 'Tài khoản của bạn đã bị xóa';
+            alert('Tài khoản của bạn đã bị xóa. Bạn sẽ được đăng xuất.');
+            location.href = 'login.html';
+          });
+        }
+      });
     }
   } catch(e) {
     console.error('Auth error:', e);
@@ -521,6 +533,18 @@ onAuthStateChanged(auth, async user => {
           renderProfile(retryData);
           watchFriends();
           watchInbox();
+          
+          // Watch for account deletion - if profile is deleted, kick user out immediately
+          onValue(ref(db, `users/${auth.currentUser.uid}`), (snap) => {
+            if (!snap.exists()) {
+              console.warn('User profile was deleted, logging out...');
+              signOut(auth).then(() => {
+                meDisplay.innerText = 'Tài khoản của bạn đã bị xóa';
+                alert('Tài khoản của bạn đã bị xóa. Bạn sẽ được đăng xuất.');
+                location.href = 'login.html';
+              });
+            }
+          });
           return;
         }
       } catch(retryErr){
