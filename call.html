@@ -410,8 +410,6 @@ function joinRoom(){
   });
 }
 
-let iceCandidateBuffer = {}; // buffer candidates until remote description is set
-
 function createPeer(pid, name){
   const pc = new RTCPeerConnection();
   pcs[pid]=pc;
@@ -450,11 +448,21 @@ function createPeer(pid, name){
   pc.oniceconnectionstatechange = ()=>{ dbg(`ICE state ${pid}: ${pc.iceConnectionState}`); };
   pc.onconnectionstatechange = ()=>{ dbg(`Connection state ${pid}: ${pc.connectionState}`); };
   pc.onerror = e=>{ dbg(`PC error for ${pid}: ${e}`); };
-  pc.createOffer().then(o=>{
-    dbg(`Sending offer to ${pid}`);
-    pc.setLocalDescription(o);
-    push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o});
-  }).catch(err=>{ dbg(`Error creating offer for ${pid}: ${err.message}`); });
+  
+  // Offer-answer negotiation: only the peer with smaller UID creates offer
+  // This avoids race conditions where both peers try to create offers simultaneously
+  const shouldCreateOffer = uid < pid;
+  
+  if(shouldCreateOffer) {
+    dbg(`I have smaller UID (${uid} < ${pid}), creating offer...`);
+    pc.createOffer().then(o=>{
+      dbg(`Sending offer to ${pid}`);
+      pc.setLocalDescription(o);
+      push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o});
+    }).catch(err=>{ dbg(`Error creating offer for ${pid}: ${err.message}`); });
+  } else {
+    dbg(`I have larger UID (${uid} > ${pid}), waiting for offer...`);
+  }
 }
 
 function handleSignal(from, type, data){
@@ -476,11 +484,17 @@ function handleSignal(from, type, data){
         });
         iceCandidateBuffer[from] = [];
       }
-      pc.createAnswer().then(a=>{ 
-        dbg(`Sending answer to ${from}`);
-        pc.setLocalDescription(a); 
-        push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a}); 
-      }).catch(err=>{ dbg(`Error creating answer for ${from}: ${err.message}`); }); 
+      // Only the peer with larger UID creates answer
+      if(uid > from) {
+        dbg(`I have larger UID (${uid} > ${from}), creating answer...`);
+        pc.createAnswer().then(a=>{ 
+          dbg(`Sending answer to ${from}`);
+          pc.setLocalDescription(a); 
+          push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a}); 
+        }).catch(err=>{ dbg(`Error creating answer for ${from}: ${err.message}`); }); 
+      } else {
+        dbg(`I have smaller UID (${uid} < ${from}), NOT creating answer (peer will)`);
+      }
     }).catch(err=>{ dbg(`Error setting remote description (offer) from ${from}: ${err.message}`); }); 
   }
   else if(type === 'answer'){ 
