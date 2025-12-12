@@ -436,7 +436,16 @@ function createPeer(pid, name){
     }
   };
   pc.onicecandidate = e=>{
-    if(e.candidate) { dbg(`ICE candidate for ${pid}`); push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate}); }
+    if(e.candidate) { 
+      dbg(`ICE candidate for ${pid}: ${e.candidate.candidate ? e.candidate.candidate.slice(0,50) : '(empty)'}`);
+      // Send the full RTCIceCandidate object, not just toJSON()
+      const candData = {
+        candidate: e.candidate.candidate,
+        sdpMLineIndex: e.candidate.sdpMLineIndex,
+        sdpMid: e.candidate.sdpMid
+      };
+      push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: candData}); 
+    }
   };
   pc.oniceconnectionstatechange = ()=>{ dbg(`ICE state ${pid}: ${pc.iceConnectionState}`); };
   pc.onconnectionstatechange = ()=>{ dbg(`Connection state ${pid}: ${pc.connectionState}`); };
@@ -496,7 +505,11 @@ function handleSignal(from, type, data){
       iceCandidateBuffer[from].push(data);
     } else {
       dbg(`Adding ICE candidate from ${from}`);
-      pc.addIceCandidate(new RTCIceCandidate(data)).catch(err=>{ dbg(`Error adding ICE candidate from ${from}: ${err.message}`); }); 
+      try {
+        pc.addIceCandidate(new RTCIceCandidate(data));
+      } catch(err) { 
+        dbg(`Error adding ICE candidate from ${from}: ${err.message}`); 
+      }
     }
   }
 }
