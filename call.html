@@ -410,10 +410,14 @@ function joinRoom(){
   });
 }
 
+let iceCandidateBuffer = {}; // buffer candidates until remote description is set
+
 function createPeer(pid, name){
   const pc = new RTCPeerConnection();
   pcs[pid]=pc;
   tiles[pid]=createTile(pid, name);
+  iceCandidateBuffer[pid] = []; // initialize buffer for this peer
+  
   if(localStream) {
     dbg(`Adding ${localStream.getTracks().length} local tracks to PC for ${pid}`);
     localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
@@ -432,7 +436,7 @@ function createPeer(pid, name){
     }
   };
   pc.onicecandidate = e=>{
-    if(e.candidate) { dbg(`ICE candidate for ${pid}`); push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); }
+    if(e.candidate) { dbg(`ICE candidate for ${pid}`); push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate}); }
   };
   pc.oniceconnectionstatechange = ()=>{ dbg(`ICE state ${pid}: ${pc.iceConnectionState}`); };
   pc.onconnectionstatechange = ()=>{ dbg(`Connection state ${pid}: ${pc.connectionState}`); };
@@ -440,7 +444,7 @@ function createPeer(pid, name){
   pc.createOffer().then(o=>{
     dbg(`Sending offer to ${pid}`);
     pc.setLocalDescription(o);
-    push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o.toJSON()});
+    push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o});
   }).catch(err=>{ dbg(`Error creating offer for ${pid}: ${err.message}`); });
 }
 
@@ -455,20 +459,45 @@ function handleSignal(from, type, data){
   if(type === 'offer'){ 
     dbg(`Handling offer from ${from}`);
     pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ 
+      dbg(`Remote description (offer) set for ${from}. Flushing buffered ICE candidates...`);
+      // Flush buffered candidates
+      if(iceCandidateBuffer[from]) {
+        iceCandidateBuffer[from].forEach(cand=>{
+          pc.addIceCandidate(new RTCIceCandidate(cand)).catch(err=>{ dbg(`Error adding buffered ICE candidate from ${from}: ${err.message}`); });
+        });
+        iceCandidateBuffer[from] = [];
+      }
       pc.createAnswer().then(a=>{ 
         dbg(`Sending answer to ${from}`);
         pc.setLocalDescription(a); 
-        push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a.toJSON()}); 
+        push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a}); 
       }).catch(err=>{ dbg(`Error creating answer for ${from}: ${err.message}`); }); 
     }).catch(err=>{ dbg(`Error setting remote description (offer) from ${from}: ${err.message}`); }); 
   }
   else if(type === 'answer'){ 
     dbg(`Handling answer from ${from}`);
-    pc.setRemoteDescription(new RTCSessionDescription(data)).catch(err=>{ dbg(`Error setting remote description (answer) from ${from}: ${err.message}`); });
+    pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{
+      dbg(`Remote description (answer) set for ${from}. Flushing buffered ICE candidates...`);
+      // Flush buffered candidates
+      if(iceCandidateBuffer[from]) {
+        iceCandidateBuffer[from].forEach(cand=>{
+          pc.addIceCandidate(new RTCIceCandidate(cand)).catch(err=>{ dbg(`Error adding buffered ICE candidate from ${from}: ${err.message}`); });
+        });
+        iceCandidateBuffer[from] = [];
+      }
+    }).catch(err=>{ dbg(`Error setting remote description (answer) from ${from}: ${err.message}`); });
   }
   else if(type === 'candidate'){ 
-    dbg(`Adding ICE candidate from ${from}`);
-    pc.addIceCandidate(new RTCIceCandidate(data)).catch(err=>{ dbg(`Error adding ICE candidate from ${from}: ${err.message}`); }); 
+    dbg(`Received ICE candidate from ${from}`);
+    // If remote description is not set yet, buffer the candidate
+    if(!pc.remoteDescription) {
+      dbg(`Buffering ICE candidate from ${from} (remote description not set yet)`);
+      if(!iceCandidateBuffer[from]) iceCandidateBuffer[from] = [];
+      iceCandidateBuffer[from].push(data);
+    } else {
+      dbg(`Adding ICE candidate from ${from}`);
+      pc.addIceCandidate(new RTCIceCandidate(data)).catch(err=>{ dbg(`Error adding ICE candidate from ${from}: ${err.message}`); }); 
+    }
   }
 }
 
