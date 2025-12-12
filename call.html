@@ -191,6 +191,7 @@ let localCamEnabled=false;
 let pcs = {};
 let tiles = {};
 let audioAnalyzers = {};
+let iceCandidateBuffer = {};
 
 function elt(t,attrs={},txt=''){ const e=document.createElement(t); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; }
 function relayout(){ const count=Object.keys(tiles).length||1; const w=stage.clientWidth; let cols=1; if(w>=1400) cols=Math.min(4,count); else if(w>=900) cols=Math.min(3,count); else if(w>=600) cols=Math.min(2,count); else cols=1; stage.style.gridTemplateColumns=`repeat(${cols},1fr)`;}
