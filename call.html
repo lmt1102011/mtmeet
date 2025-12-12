@@ -371,14 +371,22 @@ async function loadFriends(){
   }
 }
 
+let participantsUnsubscribe = null;
+let signalsUnsubscribe = null;
+
 function joinRoom(){
   const participantsRef = ref(db, 'rooms/'+roomId+'/participants');
   const signalsRef = ref(db, 'rooms/'+roomId+'/signals');
   
   dbg(`Joining room: ${roomId}`);
+  
+  // Unsubscribe from old listeners if any (avoid duplicate listeners when re-joining)
+  if(participantsUnsubscribe) participantsUnsubscribe();
+  if(signalsUnsubscribe) signalsUnsubscribe();
+  
   set(ref(db, `rooms/${roomId}/participants/${uid}`), {name: displayName || username});
   
-  onValue(participantsRef, snap=>{
+  participantsUnsubscribe = onValue(participantsRef, snap=>{
     const data = snap.val()||{};
     dbg(`Participants: ${Object.keys(data).join(', ')}`);
     Object.keys(data).forEach(pid=>{
@@ -390,7 +398,7 @@ function joinRoom(){
     });
   });
 
-  onValue(signalsRef, snap=>{
+  signalsUnsubscribe = onValue(signalsRef, snap=>{
     const signals = snap.val();
     if (!signals) return;
     Object.entries(signals).forEach(([key, s]) => {
@@ -428,11 +436,12 @@ function createPeer(pid, name){
   };
   pc.oniceconnectionstatechange = ()=>{ dbg(`ICE state ${pid}: ${pc.iceConnectionState}`); };
   pc.onconnectionstatechange = ()=>{ dbg(`Connection state ${pid}: ${pc.connectionState}`); };
+  pc.onerror = e=>{ dbg(`PC error for ${pid}: ${e}`); };
   pc.createOffer().then(o=>{
     dbg(`Sending offer to ${pid}`);
     pc.setLocalDescription(o);
     push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o.toJSON()});
-  });
+  }).catch(err=>{ dbg(`Error creating offer for ${pid}: ${err.message}`); });
 }
 
 function handleSignal(from, type, data){
@@ -450,16 +459,16 @@ function handleSignal(from, type, data){
         dbg(`Sending answer to ${from}`);
         pc.setLocalDescription(a); 
         push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a.toJSON()}); 
-      }); 
-    }); 
+      }).catch(err=>{ dbg(`Error creating answer for ${from}: ${err.message}`); }); 
+    }).catch(err=>{ dbg(`Error setting remote description (offer) from ${from}: ${err.message}`); }); 
   }
   else if(type === 'answer'){ 
     dbg(`Handling answer from ${from}`);
-    pc.setRemoteDescription(new RTCSessionDescription(data)); 
+    pc.setRemoteDescription(new RTCSessionDescription(data)).catch(err=>{ dbg(`Error setting remote description (answer) from ${from}: ${err.message}`); });
   }
   else if(type === 'candidate'){ 
     dbg(`Adding ICE candidate from ${from}`);
-    pc.addIceCandidate(new RTCIceCandidate(data)); 
+    pc.addIceCandidate(new RTCIceCandidate(data)).catch(err=>{ dbg(`Error adding ICE candidate from ${from}: ${err.message}`); }); 
   }
 }
 
