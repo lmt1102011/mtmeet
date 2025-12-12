@@ -177,9 +177,9 @@ authReadyPromise.then(() => {
   meName.innerText = displayName;
   meInfo.innerText = uid;
   
-  // Enable the SET button now that auth is ready
-  requestPermBtn.disabled = false;
-  requestPermBtn.style.opacity = '1';
+  // Auto-request media permissions when auth is ready
+  dbg('Auth ready. Auto-requesting media permissions...');
+  requestPermissions();
 }).catch(err => {
   console.error('Failed to load auth:', err);
   alert('Lỗi tải thông tin người dùng');
@@ -221,45 +221,70 @@ function createTile(uid,name){
   return tiles[uid];
 }
 
-function requestPermissions(){
+async function requestPermissions(){
   if (!username || !uid) {
     alert('Chưa tải thông tin người dùng');
     return;
   }
   
-  navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true}}).then(stream=>{
+  // Try to get media with graceful fallback
+  let stream = null;
+  let mediaType = null;
+  
+  // Try 1: video + audio
+  try {
+    dbg('Attempting: video + audio...');
+    stream = await navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true}});
+    mediaType = 'video+audio';
     dbg('✓ getUserMedia success - camera & mic granted');
-    console.log('✓ Đã cấp quyền camera & mic');
-    localStream=stream; 
-    localCamEnabled=true; 
-    localMicEnabled=true;
-    
-    tiles['me']=createTile('me', username);
-    tiles['me'].video.srcObject=localStream;
-    // Mute local playback so you don't hear your own microphone (self-monitoring)
-    try{ tiles['me'].video.muted = true; tiles['me'].video.volume = 0; tiles['me'].avatar.style.display = 'none'; }catch(_){ }
-    
-    // Remove dim and no-perm classes
-    camBtn.classList.remove('dim','no-perm');
-    muteBtn.classList.remove('dim','no-perm');
-    camBtn.classList.add('mic-active');
-    muteBtn.classList.add('mic-active');
-    
-    startMicAnalyzer('me',localStream);
-    joinRoom();
-  }).catch(e=>{
-    dbg(`✗ getUserMedia error: ${e.name} - ${e.message}. Joining room without local stream...`);
-    console.error('✗ getUserMedia error:', e);
-    if(e.name==="NotAllowedError" || e.name === "PermissionDeniedError"){ 
-      dbg('Permission denied. You can still receive friend\'s video/audio.');
-      camBtn.classList.add('no-perm'); 
-      muteBtn.classList.add('no-perm');
-      // Still allow joining the room to receive remote streams
-      joinRoom();
-    } else {
-      alert("Lỗi truy cập camera/mic: " + e.message);
+  } catch(e1) {
+    dbg(`✗ video+audio failed (${e1.name}), trying audio-only...`);
+    // Try 2: audio only
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      mediaType = 'audio';
+      dbg('✓ getUserMedia success - mic granted (no camera)');
+    } catch(e2) {
+      dbg(`✗ audio-only failed (${e2.name}), trying video-only...`);
+      // Try 3: video only
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({video:true});
+        mediaType = 'video';
+        dbg('✓ getUserMedia success - camera granted (no mic)');
+      } catch(e3) {
+        dbg(`✗ video-only failed (${e3.name}). Joining room without local stream.`);
+        console.error('All media requests failed:', e1, e2, e3);
+        camBtn.classList.add('no-perm'); 
+        muteBtn.classList.add('no-perm');
+        joinRoom(); // Join without local stream
+        return;
+      }
     }
-  });
+  }
+
+  if (!stream) {
+    dbg('No stream obtained. Joining room without local stream.');
+    joinRoom();
+    return;
+  }
+
+  localStream = stream;
+  localCamEnabled = (mediaType === 'video+audio' || mediaType === 'video');
+  localMicEnabled = (mediaType === 'video+audio' || mediaType === 'audio');
+  
+  console.log(`✓ Đã cấp quyền (${mediaType})`);
+  
+  tiles['me']=createTile('me', username);
+  tiles['me'].video.srcObject=localStream;
+  // Mute local playback so you don't hear your own microphone (self-monitoring)
+  try{ tiles['me'].video.muted = true; tiles['me'].video.volume = 0; tiles['me'].avatar.style.display = 'none'; }catch(_){ }
+  
+  // Remove dim and no-perm classes if we have media
+  if(localCamEnabled) { camBtn.classList.remove('dim','no-perm'); camBtn.classList.add('mic-active'); }
+  if(localMicEnabled) { muteBtn.classList.remove('dim','no-perm'); muteBtn.classList.add('mic-active'); }
+  
+  if(localMicEnabled) startMicAnalyzer('me',localStream);
+  joinRoom();
 }
 
 muteBtn.onclick = ()=>{ 
@@ -388,10 +413,15 @@ function createPeer(pid, name){
     dbg(`No localStream yet when creating PC for ${pid}`);
   }
   pc.ontrack = e=>{
-    dbg(`ontrack from ${pid}: ${e.streams.length} streams, ${e.track.kind}`);
-    tiles[pid].video.srcObject = e.streams[0];
-    try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
-    startMicAnalyzer(pid, e.streams[0]);
+    dbg(`ontrack from ${pid}: ${e.streams.length} streams, track kind=${e.track.kind}, enabled=${e.track.enabled}`);
+    if(tiles[pid]) {
+      dbg(`Setting video.srcObject for ${pid}`);
+      tiles[pid].video.srcObject = e.streams[0];
+      try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
+      if(e.track.kind === 'audio') startMicAnalyzer(pid, e.streams[0]);
+    } else {
+      dbg(`ERROR: tile not found for ${pid}`);
+    }
   };
   pc.onicecandidate = e=>{
     if(e.candidate) { dbg(`ICE candidate for ${pid}`); push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); }
