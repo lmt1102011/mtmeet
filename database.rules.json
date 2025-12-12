@@ -5,7 +5,10 @@
       ".write": "auth != null",
       "$uid": {
         ".read": "auth != null",
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid",
+        "isAdmin": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() === true && auth.uid !== $uid"
+        }
       }
     },
     "usernameIndex": {
@@ -42,6 +45,15 @@
           ".read": "auth != null",
           ".write": "auth != null"
         }
+      }
+    },
+    "reports": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$reportId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['reportedUid', 'reportedName', 'reporterUid', 'reporterName', 'timestamp'])"
       }
     }
   }

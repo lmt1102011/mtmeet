@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manager — Quản lý tài khoản & Report</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%2312192a'/%3E%3Ctext x='50'%20y='58' font-size='52' text-anchor='middle' fill='%23ffffff' font-family='Arial'%3EM%3C/text%3E%3C/svg%3E">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #0f172a;
+  --surface: #1a2847;
+  --accent: #3b82f6;
+  --danger: #ef4444;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --muted: #94a3b8;
+  --border: #334155;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f172a 0%, #1a2847 100%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  background: rgba(26, 40, 71, 0.8);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 24px;
+  color: #fff;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.tabButtons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.tabBtn {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.tabBtn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.tabBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+
+.tabContent {
+  display: none;
+}
+
+.tabContent.active {
+  display: block;
+}
+
+.card {
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(26, 40, 71, 0.9) 100%);
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+tr:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.reportItem {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.reportMeta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.reportBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.pending {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.resolved {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.audioPlayer {
+  margin: 12px 0;
+}
+
+audio {
+  width: 100%;
+  height: 28px;
+}
+
+.reportActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.loading { color: var(--muted); font-style: italic; }
+
+@media (max-width: 768px) {
+  header { padding: 12px 16px; }
+  .logo { width: 40px; height: 40px; font-size: 20px; }
+  header h1 { font-size: 16px; }
+  .tabButtons { gap: 4px; }
+  .tabBtn { padding: 8px 10px; font-size: 12px; }
+  .container { padding: 0 12px; }
+  table { font-size: 12px; }
+  th, td { padding: 8px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">M</div>
+  <h1>Manager</h1>
+  <div class="tabButtons">
+    <button class="tabBtn active" onclick="switchTab('accounts')">Tài khoản</button>
+    <button class="tabBtn" onclick="switchTab('reports')">Report</button>
+    <button class="tabBtn" onclick="logout()" style="margin-left:8px">Đăng xuất</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Accounts Tab -->
+  <div id="accounts" class="tabContent active">
+    <div class="card">
+      <h2>Quản lý tài khoản</h2>
+      <div id="accountsList" class="loading">Đang tải...</div>
+    </div>
+  </div>
+
+  <!-- Reports Tab -->
+  <div id="reports" class="tabContent">
+    <div class="card">
+      <h2>Danh sách Report</h2>
+      <div id="reportsList" class="loading">Đang tải...</div>
+    </div>
+  </div>
+</div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+import { getDatabase, ref, get, set, remove, onValue } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getStorage, ref as storageRef, getBytes } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-storage.js';
+
+const app = initializeApp(window.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getDatabase(app);
+const storage = getStorage(app);
+
+// Store current user ID globally
+let currentUserId = null;
+
+// Check auth - admin only
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    location.href = 'login.html';
+    return;
+  }
+  
+  try {
+    const userSnap = await get(ref(db, `users/${user.uid}`));
+    const userData = userSnap.val();
+    
+    // Only allow if user has isAdmin = true
+    if (!userData || userData.isAdmin !== true) {
+      alert('Chỉ admin mới có quyền truy cập');
+      location.href = 'index.html';
+      return;
+    }
+    
+    currentUserId = user.uid;
+    loadAccounts();
+    loadReports();
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+    location.href = 'index.html';
+  }
+});
+
+async function loadAccounts() {
+  const list = document.getElementById('accountsList');
+  try {
+    const snap = await get(ref(db, 'users'));
+    const users = snap.val() || {};
+    
+    if (Object.keys(users).length === 0) {
+      list.innerHTML = '<p class="loading">Không có tài khoản</p>';
+      return;
+    }
+    
+    let html = '<table><thead><tr><th>UID</th><th>Tên hiển thị</th><th>Username</th><th>Admin</th><th>Hành động</th></tr></thead><tbody>';
+    Object.entries(users).forEach(([uid, user]) => {
+      const isAdmin = user.isAdmin === true;
+      const isCurrentUser = uid === currentUserId;
+      const adminBtn = isAdmin ? 'Bỏ quyền Admin' : 'Cấp quyền Admin';
+      const adminClass = isAdmin ? 'btn-danger' : 'btn-primary';
+      const adminBtnDisabled = isCurrentUser && isAdmin ? ' disabled' : '';
+      const adminBtnTitle = isCurrentUser && isAdmin ? ' title="Không thể xóa quyền của chính mình"' : '';
+      html += `<tr>
+        <td style="font-size:11px;font-family:monospace">${uid.slice(0, 12)}...</td>
+        <td>${user.displayName || 'N/A'}</td>
+        <td>@${user.username || 'N/A'}</td>
+        <td>${isAdmin ? '<span style="color:#10b981;font-weight:600">✓ Admin</span>' : '<span style="color:var(--muted)">-</span>'}</td>
+        <td style="display:flex;gap:6px">
+          <button class="btn ${adminClass}"${adminBtnDisabled}${adminBtnTitle} onclick="toggleAdmin('${uid}', ${isAdmin})">${adminBtn}</button>
+          <button class="btn btn-danger" onclick="deleteUser('${uid}')">Xóa</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = '<p style="color:#f44">Lỗi: ' + e.message + '</p>';
+  }
+}
+
+async function loadReports() {
+  const list = document.getElementById('reportsList');
+  try {
+    const snap = await get(ref(db, 'reports'));
+    const reports = snap.val() || {};
+    
+    if (Object.keys(reports).length === 0) {
+      list.innerHTML = '<p class="loading">Không có report nào</p>';
+      return;
+    }
+    
+    let html = '';
+    Object.entries(reports).forEach(([reportId, report]) => {
+      const timestamp = new Date(report.timestamp).toLocaleString('vi-VN');
+      const status = report.status || 'pending';
+      html += `<div class="reportItem">
+        <div class="reportMeta">
+          <div><strong>${report.reportedName}</strong> được report bởi <strong>${report.reporterName}</strong></div>
+          <span class="reportBadge ${status}">${status === 'pending' ? 'Chờ xử lý' : 'Đã xử lý'}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">${timestamp}</div>
+        ${report.hasAudio ? '<div class="audioPlayer"><audio controls></audio></div>' : ''}
+        <div class="reportActions">
+          <button class="btn btn-primary" onclick="markResolved('${reportId}')">Đã xử lý</button>
+          <button class="btn btn-danger" onclick="deleteReport('${reportId}')">Xóa</button>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = '<p style="color:#f44">Lỗi: ' + e.message + '</p>';
+  }
+}
+
+window.switchTab = (tab) => {
+  document.querySelectorAll('.tabContent').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tabBtn').forEach(el => el.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+};
+
+window.deleteUser = async (uid) => {
+  if (!confirm('Xóa tài khoản ' + uid + '?')) return;
+  try {
+    await remove(ref(db, `users/${uid}`));
+    alert('Đã xóa tài khoản');
+    loadAccounts();
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+  }
+};
+
+window.toggleAdmin = async (uid, isCurrentlyAdmin) => {
+  // Prevent self-removal of admin
+  if (uid === currentUserId && isCurrentlyAdmin) {
+    alert('Không thể xóa quyền admin của chính mình');
+    return;
+  }
+  
+  const action = isCurrentlyAdmin ? 'bỏ quyền' : 'cấp quyền';
+  if (!confirm('Bạn muốn ' + action + ' admin cho tài khoản này?')) return;
+  try {
+    const userRef = ref(db, `users/${uid}`);
+    const snap = await get(userRef);
+    const user = snap.val();
+    await set(userRef, { ...user, isAdmin: !isCurrentlyAdmin });
+    alert('Đã cập nhật quyền admin');
+    loadAccounts();
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+  }
+};
+
+window.deleteReport = async (reportId) => {
+  if (!confirm('Xóa report này?')) return;
+  try {
+    await remove(ref(db, `reports/${reportId}`));
+    alert('Đã xóa report');
+    loadReports();
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+  }
+};
+
+window.markResolved = async (reportId) => {
+  try {
+    // Update report status
+    const reportRef = ref(db, `reports/${reportId}`);
+    const snap = await get(reportRef);
+    const data = snap.val();
+    await set(reportRef, { ...data, status: 'resolved' });
+    alert('Đã cập nhật trạng thái');
+    loadReports();
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+  }
+};
+
+window.logout = () => {
+  signOut(auth).then(() => { location.href = 'login.html'; });
+};
+</script>
+</body>
+</html>
