@@ -176,7 +176,9 @@ function createTile(uid,name){
   if(tiles[uid]) return tiles[uid];
   const tile = elt('div',{class:'tile'});
   const video = elt('video',{autoplay:true,playsinline:true});
-  const avatar = elt('div',{class:'avatar'},name[0].toUpperCase());
+  const safeName = (name && String(name).trim()) ? String(name).trim() : 'U';
+  const avatarInitial = (safeName && safeName[0]) ? safeName[0].toUpperCase() : 'U';
+  const avatar = elt('div',{class:'avatar'},avatarInitial);
   const bottomBar = elt('div',{class:'bottomBar'});
   const badge = elt('div',{class:'badge'},name);
   const micDot = elt('div',{class:'micDot'});
@@ -184,6 +186,13 @@ function createTile(uid,name){
   tile.appendChild(video); tile.appendChild(avatar); tile.appendChild(bottomBar);
   stage.appendChild(tile);
   tiles[uid]={el:tile,video,avatar,badge,micDot};
+  // Hide avatar automatically when video starts playing
+  video.addEventListener('loadedmetadata', ()=>{
+    try{ video.play().catch(()=>{}); }catch(e){}
+    if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = 'none';
+  });
+  // If the stream is removed or video has no tracks, show avatar again
+  video.addEventListener('emptied', ()=>{ if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = ''; });
   relayout();
   return tiles[uid];
 }
@@ -202,6 +211,7 @@ function requestPermissions(){
     
     tiles['me']=createTile('me', username);
     tiles['me'].video.srcObject=localStream;
+    try{ tiles['me'].avatar.style.display = 'none'; }catch(_){ }
     
     // Remove dim and no-perm classes
     camBtn.classList.remove('dim','no-perm');
@@ -341,6 +351,11 @@ function createPeer(pid, name){
   tiles[pid]=createTile(pid, name);
   if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
   pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid, e.streams[0]); };
+  pc.ontrack = e=>{ 
+    tiles[pid].video.srcObject = e.streams[0]; 
+    try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
+    startMicAnalyzer(pid, e.streams[0]); 
+  };
   pc.onicecandidate = e=>{ if(e.candidate) push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); };
   pc.createOffer().then(o=>{
     pc.setLocalDescription(o);
