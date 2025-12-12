@@ -719,6 +719,9 @@ authReadyPromise.then(() => {
   username = user.username;
   displayName = user.displayName || user.username;
   
+  // Initialize me object with user data
+  me = { uid, username, displayName, friends: {} };
+  
   console.debug('Auth ready - uid:', uid, 'username:', username, 'displayName:', displayName);
   
   meName.innerText = displayName;
@@ -735,6 +738,7 @@ authReadyPromise.then(() => {
 let localStream=null;
 let localMicEnabled=false;
 let localCamEnabled=false;
+let me = null; // Current user object {uid, username, displayName, friends}
 let pcs = {};
 let tiles = {};
 let audioAnalyzers = {};
@@ -777,10 +781,14 @@ function createTile(uid,name){
   stage.appendChild(tile);
   tiles[uid]={el:tile,video,avatar,badge,micDot,uid,name};
   // Hide avatar automatically when video starts playing
-  video.addEventListener('loadedmetadata', ()=>{
-    try{ video.play().catch(()=>{}); }catch(e){}
-    if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = 'none';
-  });
+  const hideAvatarOnPlay = ()=>{
+    if(tiles[uid] && tiles[uid].avatar) {
+      tiles[uid].avatar.style.display = 'none';
+    }
+  };
+  video.addEventListener('loadedmetadata', hideAvatarOnPlay);
+  video.addEventListener('play', hideAvatarOnPlay);
+  video.addEventListener('playing', hideAvatarOnPlay);
   // If the stream is removed or video has no tracks, show avatar again
   video.addEventListener('emptied', ()=>{ if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = ''; });
   relayout();
@@ -843,13 +851,30 @@ async function requestPermissions(){
   tiles['me']=createTile('me', username);
   tiles['me'].video.srcObject=localStream;
   // Mute local playback so you don't hear your own microphone (self-monitoring)
-  try{ tiles['me'].video.muted = true; tiles['me'].video.volume = 0; tiles['me'].avatar.style.display = 'none'; }catch(_){ }
+  try{ 
+    tiles['me'].video.muted = true; 
+    tiles['me'].video.volume = 0;
+    // Don't hide avatar immediately - let loadedmetadata event do it
+  }catch(_){ }
   
   // Remove dim and no-perm classes if we have media
   if(localCamEnabled) { camBtn.classList.remove('dim','no-perm'); camBtn.classList.add('mic-active'); }
   if(localMicEnabled) { muteBtn.classList.remove('dim','no-perm'); muteBtn.classList.add('mic-active'); }
   
   if(localMicEnabled) startMicAnalyzer('me',localStream);
+  
+  // Load friends list to check friend status in peer menu
+  try {
+    const friendsSnap = await get(ref(db, `users/${uid}/friends`));
+    const friendsData = friendsSnap.val();
+    if(friendsData && me) {
+      me.friends = friendsData;
+      console.debug('Friends loaded:', Object.keys(friendsData).length);
+    }
+  } catch(e) {
+    console.error('Error loading friends:', e);
+  }
+  
   joinRoom();
 }
 
@@ -1188,17 +1213,33 @@ function startMicAnalyzer(pid,stream){
   try {
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
     let audioChunks = [];
-    mediaRecorder.ondataavailable = (e)=>{ audioChunks.push(e.data); };
+    
+    mediaRecorder.ondataavailable = (e)=>{ 
+      if(e.data.size > 0) {
+        audioChunks.push(e.data);
+        console.debug(`Audio chunk for ${pid}:`, e.data.size, 'bytes');
+      }
+    };
+    
     mediaRecorder.onstop = ()=>{ 
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      audioBuffers[pid] = audioBlob;
+      if(audioChunks.length > 0) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        audioBuffers[pid] = audioBlob;
+        console.log(`Saved ${audioChunks.length} audio chunks for ${pid}, total:`, audioBlob.size, 'bytes');
+      }
+      // Restart recording for next 20s window
       audioChunks = [];
       mediaRecorder.start();
     };
+    
     mediaRecorder.start();
     
     // Stop and restart every 20s to keep only last 20s
-    setInterval(()=>{ mediaRecorder.stop(); }, 20000);
+    setInterval(()=>{ 
+      if(mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    }, 20000);
   } catch(e) {
     console.warn('Could not start audio recording for', pid, ':', e.message);
   }
