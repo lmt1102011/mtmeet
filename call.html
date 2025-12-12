@@ -63,15 +63,13 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 
 <div id="stageWrap"><div id="stage"></div></div>
 
-<!-- On-screen debug panel (for diagnosing signaling/ICE) -->
-<div id="debugPanel" style="position:fixed;right:12px;bottom:90px;width:340px;max-height:40vh;overflow:auto;background:rgba(0,0,0,0.65);padding:10px;border-radius:10px;color:#e8eaed;font-size:12px;z-index:1000">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <strong>DEBUG</strong>
-    <div style="display:flex;gap:6px">
-      <button id="dbgClear" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:#fff;padding:4px;border-radius:6px;cursor:pointer">Clear</button>
-    </div>
+<!-- On-screen debug panel -->
+<div id="debugPanel" style="position:fixed;right:12px;bottom:90px;width:320px;max-height:350px;background:rgba(0,0,0,0.85);border:2px solid #00ff00;padding:10px;border-radius:8px;color:#00ff00;font-family:monospace;font-size:11px;z-index:9999;overflow:hidden;display:flex;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-weight:bold">
+    <span>DEBUG LOG</span>
+    <button id="dbgClear" style="background:transparent;border:1px solid #00ff00;color:#00ff00;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px">Clear</button>
   </div>
-  <div id="dbgContent" style="white-space:pre-wrap;line-height:1.3;max-height:32vh;overflow:auto"></div>
+  <div id="dbgContent" style="overflow-y:auto;flex:1;white-space:pre-wrap;word-wrap:break-word;line-height:1.4"></div>
 </div>
 
 <div class="controls">
@@ -104,20 +102,20 @@ const db = getDatabase(app);
 
 console.debug('call.html loaded with DB URL:', window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL);
 
-// Debug helpers
+// Debug helpers - log to on-screen panel
+let dbgLog = [];
 const dbgContent = document.getElementById('dbgContent');
 const dbgClear = document.getElementById('dbgClear');
 function dbg(msg){
   const ts = new Date().toLocaleTimeString();
   const line = `[${ts}] ${msg}`;
-  if(dbgContent){ dbgContent.innerText = line + '\n' + dbgContent.innerText; }
+  dbgLog.push(line);
+  if(dbgLog.length > 60) dbgLog.shift();
+  if(dbgContent) dbgContent.innerText = dbgLog.join('\n');
   console.debug(line);
 }
-dbgClear.onclick = ()=>{ if(dbgContent) dbgContent.innerText = ''; };
-
-const peerStates = {}; // uid -> state
-function updatePeerState(pid, state){ peerStates[pid]=state; dbg(`Peer ${pid} state: ${state}`); renderPeerStates(); }
-function renderPeerStates(){ let s=''; for(const p in peerStates){ s += `${p}: ${peerStates[p]}\n`; } if(dbgContent) dbgContent.innerText = s + '\n' + dbgContent.innerText; }
+if(dbgClear) dbgClear.onclick = ()=>{ dbgLog = []; if(dbgContent) dbgContent.innerText = ''; };
+dbg('=== DEBUG PANEL ACTIVE ===');
 
 // Check auth state and wait for user data to load
 let authReadyPromise = new Promise((resolve) => {
@@ -230,6 +228,7 @@ function requestPermissions(){
   }
   
   navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true}}).then(stream=>{
+    dbg('✓ getUserMedia success - camera & mic granted');
     console.log('✓ Đã cấp quyền camera & mic');
     localStream=stream; 
     localCamEnabled=true; 
@@ -249,11 +248,14 @@ function requestPermissions(){
     startMicAnalyzer('me',localStream);
     joinRoom();
   }).catch(e=>{
+    dbg(`✗ getUserMedia error: ${e.name} - ${e.message}. Joining room without local stream...`);
     console.error('✗ getUserMedia error:', e);
     if(e.name==="NotAllowedError" || e.name === "PermissionDeniedError"){ 
+      dbg('Permission denied. You can still receive friend\'s video/audio.');
       camBtn.classList.add('no-perm'); 
-      muteBtn.classList.add('no-perm'); 
-      alert("Vui lòng cấp quyền Camera & Microphone trong cài đặt trình duyệt!"); 
+      muteBtn.classList.add('no-perm');
+      // Still allow joining the room to receive remote streams
+      joinRoom();
     } else {
       alert("Lỗi truy cập camera/mic: " + e.message);
     }
@@ -348,16 +350,18 @@ function joinRoom(){
   const participantsRef = ref(db, 'rooms/'+roomId+'/participants');
   const signalsRef = ref(db, 'rooms/'+roomId+'/signals');
   
+  dbg(`Joining room: ${roomId}`);
   set(ref(db, `rooms/${roomId}/participants/${uid}`), {name: displayName || username});
   
   onValue(participantsRef, snap=>{
     const data = snap.val()||{};
+    dbg(`Participants: ${Object.keys(data).join(', ')}`);
     Object.keys(data).forEach(pid=>{
       if(pid===uid) return;
-      if(!pcs[pid]) createPeer(pid, data[pid].name);
+      if(!pcs[pid]){ dbg(`Creating peer for ${pid}`); createPeer(pid, data[pid].name); }
     });
     Object.keys(tiles).forEach(tid=>{
-      if(tid!=='me' && !data[tid]){ tiles[tid].el.remove(); delete tiles[tid]; pcs[tid]?.close(); delete pcs[tid]; }
+      if(tid!=='me' && !data[tid]){ dbg(`Removing tile for ${tid}`); tiles[tid].el.remove(); delete tiles[tid]; pcs[tid]?.close(); delete pcs[tid]; }
     });
   });
 
@@ -366,6 +370,7 @@ function joinRoom(){
     if (!signals) return;
     Object.entries(signals).forEach(([key, s]) => {
       if(!s || s.to !== uid) return;
+      dbg(`Signal from ${s.from}: ${s.type}`);
       handleSignal(s.from, s.type, s.data);
       remove(ref(db, `rooms/${roomId}/signals/${key}`));
     });
@@ -376,33 +381,25 @@ function createPeer(pid, name){
   const pc = new RTCPeerConnection();
   pcs[pid]=pc;
   tiles[pid]=createTile(pid, name);
-  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
   if(localStream) {
-    console.debug('Adding local tracks to PC for', pid, localStream.getTracks().map(t=>t.kind));
+    dbg(`Adding ${localStream.getTracks().length} local tracks to PC for ${pid}`);
     localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
   } else {
-    console.debug('No localStream yet when creating PC for', pid);
+    dbg(`No localStream yet when creating PC for ${pid}`);
   }
   pc.ontrack = e=>{
-    console.debug('ontrack from', pid, 'streams:', e.streams);
+    dbg(`ontrack from ${pid}: ${e.streams.length} streams, ${e.track.kind}`);
     tiles[pid].video.srcObject = e.streams[0];
     try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
     startMicAnalyzer(pid, e.streams[0]);
   };
   pc.onicecandidate = e=>{
-    console.debug('onicecandidate for', pid, e.candidate);
-    if(e.candidate) push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()});
+    if(e.candidate) { dbg(`ICE candidate for ${pid}`); push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); }
   };
-  pc.oniceconnectionstatechange = ()=>{ console.debug('ICE connection state for', pid, pc.iceConnectionState); };
-  pc.onconnectionstatechange = ()=>{ console.debug('Connection state for', pid, pc.connectionState); };
-  pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid, e.streams[0]); };
-  pc.ontrack = e=>{ 
-    tiles[pid].video.srcObject = e.streams[0]; 
-    try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
-    startMicAnalyzer(pid, e.streams[0]); 
-  };
-  pc.onicecandidate = e=>{ if(e.candidate) push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()}); };
+  pc.oniceconnectionstatechange = ()=>{ dbg(`ICE state ${pid}: ${pc.iceConnectionState}`); };
+  pc.onconnectionstatechange = ()=>{ dbg(`Connection state ${pid}: ${pc.connectionState}`); };
   pc.createOffer().then(o=>{
+    dbg(`Sending offer to ${pid}`);
     pc.setLocalDescription(o);
     push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'offer', data: o.toJSON()});
   });
@@ -411,23 +408,27 @@ function createPeer(pid, name){
 function handleSignal(from, type, data){
   let pc = pcs[from]; 
   if(!pc){ 
-    // Create peer if we haven't yet; we need the name, so try to get it from tiles or default
+    dbg(`PC not found for ${from}, creating...`);
     const peerName = tiles[from]?.badge?.innerText || 'Peer';
     createPeer(from, peerName); 
     pc = pcs[from]; 
   }
   if(type === 'offer'){ 
+    dbg(`Handling offer from ${from}`);
     pc.setRemoteDescription(new RTCSessionDescription(data)).then(()=>{ 
       pc.createAnswer().then(a=>{ 
+        dbg(`Sending answer to ${from}`);
         pc.setLocalDescription(a); 
         push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: from, type: 'answer', data: a.toJSON()}); 
       }); 
     }); 
   }
   else if(type === 'answer'){ 
+    dbg(`Handling answer from ${from}`);
     pc.setRemoteDescription(new RTCSessionDescription(data)); 
   }
   else if(type === 'candidate'){ 
+    dbg(`Adding ICE candidate from ${from}`);
     pc.addIceCandidate(new RTCIceCandidate(data)); 
   }
 }
