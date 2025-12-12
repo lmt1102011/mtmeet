@@ -149,6 +149,11 @@ header > div:nth-child(2) {
   display: block;
 }
 
+/* Self-view mirroring helper: toggle with double-click on camera button */
+.selfVideo.mirrored {
+  transform: scaleX(-1);
+}
+
 .tile .avatar {
   position: absolute;
   inset: 0;
@@ -637,11 +642,13 @@ header > div:nth-child(2) {
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
-import { getDatabase, ref, set, onValue, push, get, remove } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getDatabase, ref, set, onValue, push, get, remove, update } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js';
+import { getStorage, ref as storageRef, uploadBytes } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-storage.js';
 
 const app = initializeApp(window.FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 console.debug('call.html loaded with DB URL:', window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL);
 
@@ -738,6 +745,7 @@ authReadyPromise.then(() => {
 let localStream=null;
 let localMicEnabled=false;
 let localCamEnabled=false;
+let localMirror = false; // whether to mirror self-view horizontally
 let me = null; // Current user object {uid, username, displayName, friends}
 let pcs = {};
 let tiles = {};
@@ -850,6 +858,8 @@ async function requestPermissions(){
   
   tiles['me']=createTile('me', username);
   tiles['me'].video.srcObject=localStream;
+  // Apply mirror setting for local view
+  try{ tiles['me'].video.style.transform = localMirror ? 'scaleX(-1)' : ''; }catch(_){ }
   // Mute local playback so you don't hear your own microphone (self-monitoring)
   try{ 
     tiles['me'].video.muted = true; 
@@ -896,6 +906,16 @@ camBtn.onclick = ()=>{
   localCamEnabled = !localCamEnabled; 
   localStream.getVideoTracks().forEach(t => t.enabled = localCamEnabled);
   camBtn.classList.toggle('dim', !localCamEnabled);
+};
+
+// Double-click the cam button to toggle horizontal mirror for self-view
+camBtn.ondblclick = ()=>{
+  localMirror = !localMirror;
+  if(tiles['me'] && tiles['me'].video) {
+    tiles['me'].video.style.transform = localMirror ? 'scaleX(-1)' : '';
+  }
+  camBtn.title = localMirror ? 'Camera (mirrored)' : 'Camera (normal)';
+  console.log('localMirror set to', localMirror);
 };
 
 leaveBtn.onclick = async ()=>{ 
@@ -1155,30 +1175,69 @@ function showPeerMenu(pid, peerName, btn) {
   btnReport.className = 'danger';
   btnReport.innerText = 'Report';
   btnReport.onclick = async ()=>{ 
-    if(confirm('Gửi report người dùng ' + peerName + ' với đoạn âm thanh 20s vừa qua?')) {
-      // Get audio buffer for this peer
-      const audioBlob = audioBuffers[pid];
-      const reporterUid = uid; // Use global uid instead of me.uid
-      const reporterName = displayName || username; // Use global displayName/username
-      
+    if(!confirm('Gửi report người dùng ' + peerName + ' với đoạn âm thanh 20s vừa qua?')) return;
+    // Ensure auth present
+    if(!auth || !auth.currentUser) { alert('Phiên đăng nhập không hợp lệ. Vui lòng đăng xuất và đăng nhập lại.'); menu.remove(); return; }
+
+    // Attempt to refresh token silently (best-effort)
+    try { await auth.currentUser.getIdToken(true); } catch(_) { /* ignore */ }
+
+    // Get existing ring-buffer audio if available
+    let audioBlob = audioBuffers[pid];
+    const reporterUid = auth.currentUser.uid;
+    const reporterName = displayName || username || auth.currentUser.displayName || 'Unknown';
+
+    // If no pre-recorded audio, try a short 3s capture from the peer's stream (best-effort)
+    if(!audioBlob && tiles[pid] && tiles[pid].video && tiles[pid].video.srcObject) {
       try {
-        await push(ref(db, 'reports'), {
-          reportedUid: pid,
-          reportedName: peerName,
-          reporterUid: reporterUid,
-          reporterName: reporterName,
-          timestamp: Date.now(),
-          status: 'pending',
-          hasAudio: audioBlob ? true : false
-        });
-        alert('Report được gửi thành công' + (audioBlob ? ' (có audio)' : ' (chưa có audio)'));
-        console.log('Report sent for', pid, 'from', reporterUid, 'audio:', audioBlob?.size || 'none');
-      } catch(e) { 
-        alert('Lỗi gửi report: ' + e.message);
-        console.error('Report error:', e);
-      }
-      menu.remove();
+        const tmpStream = tiles[pid].video.srcObject;
+        const tmpRecorder = new MediaRecorder(tmpStream, { mimeType: 'audio/webm' });
+        const tmpChunks = [];
+        tmpRecorder.ondataavailable = e=>{ if(e.data && e.data.size) tmpChunks.push(e.data); };
+        tmpRecorder.start();
+        await new Promise(r => setTimeout(r, 3000));
+        tmpRecorder.stop();
+        await new Promise(r => { tmpRecorder.onstop = r; });
+        if(tmpChunks.length) audioBlob = new Blob(tmpChunks, { type: 'audio/webm' });
+      } catch(recErr) { console.warn('Short capture failed:', recErr); }
     }
+
+    try {
+      // Create a new report entry and get its key
+      const reportsRef = ref(db, 'reports');
+      const newRef = push(reportsRef);
+      const data = {
+        reportedUid: pid,
+        reportedName: peerName,
+        reporterUid: reporterUid,
+        reporterName: reporterName,
+        timestamp: Date.now(),
+        status: 'pending',
+        hasAudio: !!audioBlob
+      };
+      await set(newRef, data);
+
+      // If we have audio, upload to Storage and update the report node with path
+      if(audioBlob) {
+        try {
+          const path = `reports/${newRef.key}.webm`;
+          const sRef = storageRef(storage, path);
+          await uploadBytes(sRef, audioBlob);
+          await update(ref(db, `reports/${newRef.key}`), { hasAudio: true, audioPath: path });
+        } catch(upErr) {
+          console.error('Audio upload failed:', upErr);
+        }
+      }
+
+      alert('Report được gửi thành công' + (audioBlob ? ' (có audio)' : ' (không có audio)'));
+      console.log('Report created', newRef.key, 'audio present:', !!audioBlob);
+    } catch(e) {
+      alert('Lỗi gửi report: ' + (e.message || e));
+      console.error('Report error:', e);
+    }
+    menu.remove();
+    return;
+  }
   };
   menu.appendChild(btnReport);
   
@@ -1192,7 +1251,7 @@ function showPeerMenu(pid, peerName, btn) {
   // Close menu on outside click
   const closeMenu = (e)=>{ if(!menu.contains(e.target) && e.target !== btn) { menu.remove(); document.removeEventListener('click', closeMenu); } };
   setTimeout(()=>{ document.addEventListener('click', closeMenu); }, 0);
-}
+
 
 function startMicAnalyzer(pid,stream){
   const audioCtx = new AudioContext();
