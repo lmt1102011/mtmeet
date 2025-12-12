@@ -15,8 +15,8 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 #meInfo{font-size:13px;color:var(--muted)}
 #inviteBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px;border-radius:8px;cursor:pointer}
 #stageWrap{flex:1;overflow:auto;padding:16px}
-#stage{display:grid;gap:12px;align-content:start}
-.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:150px;display:flex;align-items:center;justify-content:center}
+#stage{display:grid;gap:12px;align-content:start;grid-auto-rows:1fr}
+.tile{background:#000;border-radius:var(--tile-radius);overflow:hidden;position:relative;min-height:120px;display:flex;align-items:center;justify-content:center;aspect-ratio:16/9}
 .tile video{width:100%;height:100%;object-fit:cover;display:block}
 .tile .avatar{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;background:linear-gradient(135deg,#263238,#37474f);color:#fff}
 .tile .bottomBar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -45,6 +45,9 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 @media (max-width:599px){#stage{grid-template-columns:repeat(1,1fr)}}
 .small{font-size:13px;color:var(--muted)}
 .hidden{display:none}
+.debug-override { display: none !important; }
+/* Ensure any leftover debug panel is hidden (fallback) */
+#debugPanel, #dbgContent, #dbgClear { display: none !important; }
 </style>
 </head>
 <body>
@@ -63,14 +66,7 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 
 <div id="stageWrap"><div id="stage"></div></div>
 
-<!-- On-screen debug panel -->
-<div id="debugPanel" style="position:fixed;right:12px;bottom:90px;width:320px;max-height:350px;background:rgba(0,0,0,0.85);border:2px solid #00ff00;padding:10px;border-radius:8px;color:#00ff00;font-family:monospace;font-size:11px;z-index:9999;overflow:hidden;display:flex;flex-direction:column">
-  <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-weight:bold">
-    <span>DEBUG LOG</span>
-    <button id="dbgClear" style="background:transparent;border:1px solid #00ff00;color:#00ff00;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px">Clear</button>
-  </div>
-  <div id="dbgContent" style="overflow-y:auto;flex:1;white-space:pre-wrap;word-wrap:break-word;line-height:1.4"></div>
-</div>
+<!-- Debug panel removed -->
 
 <div class="controls">
   <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">SET</button>
@@ -102,20 +98,24 @@ const db = getDatabase(app);
 
 console.debug('call.html loaded with DB URL:', window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL);
 
-// Debug helpers - log to on-screen panel
+// Debug helpers - controlled by DEBUG flag
+const DEBUG = false;
 let dbgLog = [];
 const dbgContent = document.getElementById('dbgContent');
 const dbgClear = document.getElementById('dbgClear');
 function dbg(msg){
   const ts = new Date().toLocaleTimeString();
   const line = `[${ts}] ${msg}`;
-  dbgLog.push(line);
-  if(dbgLog.length > 60) dbgLog.shift();
-  if(dbgContent) dbgContent.innerText = dbgLog.join('\n');
-  console.debug(line);
+  // Maintain recent log buffer only when DEBUG enabled
+  if(DEBUG){
+    dbgLog.push(line);
+    if(dbgLog.length > 60) dbgLog.shift();
+    if(dbgContent) dbgContent.innerText = dbgLog.join('\n');
+    console.debug(line);
+  }
 }
 if(dbgClear) dbgClear.onclick = ()=>{ dbgLog = []; if(dbgContent) dbgContent.innerText = ''; };
-dbg('=== DEBUG PANEL ACTIVE ===');
+if(DEBUG) dbg('=== DEBUG PANEL ACTIVE ===');
 
 // Check auth state and wait for user data to load
 let authReadyPromise = new Promise((resolve) => {
@@ -194,7 +194,18 @@ let audioAnalyzers = {};
 let iceCandidateBuffer = {};
 
 function elt(t,attrs={},txt=''){ const e=document.createElement(t); for(const k in attrs) e.setAttribute(k,attrs[k]); if(txt) e.innerText=txt; return e; }
-function relayout(){ const count=Object.keys(tiles).length||1; const w=stage.clientWidth; let cols=1; if(w>=1400) cols=Math.min(4,count); else if(w>=900) cols=Math.min(3,count); else if(w>=600) cols=Math.min(2,count); else cols=1; stage.style.gridTemplateColumns=`repeat(${cols},1fr)`;}
+function relayout(){
+  const count = Math.max(1, Object.keys(tiles).length);
+  const w = stage.clientWidth || window.innerWidth;
+  // Prefer a near-square layout: columns ~= ceil(sqrt(count))
+  let cols = Math.ceil(Math.sqrt(count));
+  // Limit columns by available width (target min tile width ~280px)
+  const maxColsByWidth = Math.max(1, Math.floor(w / 280));
+  cols = Math.min(cols, maxColsByWidth);
+  cols = Math.min(cols, count);
+  stage.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  stage.style.gridAutoRows = '1fr';
+}
 window.addEventListener('resize',relayout);
 
 function createTile(uid,name){
