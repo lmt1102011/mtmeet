@@ -1158,30 +1158,24 @@ function showPeerMenu(pid, peerName, btn) {
     if(confirm('Gửi report người dùng ' + peerName + ' với đoạn âm thanh 20s vừa qua?')) {
       // Get audio buffer for this peer
       const audioBlob = audioBuffers[pid];
-      if(audioBlob) {
-        const formData = new FormData();
-        formData.append('reportedUid', pid);
-        formData.append('reportedName', peerName);
-        formData.append('reporterUid', me.uid);
-        formData.append('reporterName', me.displayName);
-        formData.append('audio', audioBlob, 'report-audio.webm');
-        formData.append('timestamp', new Date().toISOString());
-        
-        // Create report in Firebase
-        try {
-          await push(ref(db, 'reports'), {
-            reportedUid: pid,
-            reportedName: peerName,
-            reporterUid: me.uid,
-            reporterName: me.displayName,
-            timestamp: Date.now(),
-            status: 'pending',
-            hasAudio: true
-          });
-          alert('Report được gửi thành công');
-        } catch(e) { alert('Lỗi gửi report: ' + e.message); }
-      } else {
-        alert('Không có đoạn âm thanh để report');
+      const reporterUid = uid; // Use global uid instead of me.uid
+      const reporterName = displayName || username; // Use global displayName/username
+      
+      try {
+        await push(ref(db, 'reports'), {
+          reportedUid: pid,
+          reportedName: peerName,
+          reporterUid: reporterUid,
+          reporterName: reporterName,
+          timestamp: Date.now(),
+          status: 'pending',
+          hasAudio: audioBlob ? true : false
+        });
+        alert('Report được gửi thành công' + (audioBlob ? ' (có audio)' : ' (chưa có audio)'));
+        console.log('Report sent for', pid, 'from', reporterUid, 'audio:', audioBlob?.size || 'none');
+      } catch(e) { 
+        alert('Lỗi gửi report: ' + e.message);
+        console.error('Report error:', e);
       }
       menu.remove();
     }
@@ -1212,6 +1206,7 @@ function startMicAnalyzer(pid,stream){
   // Start recording audio for 20s ring buffer
   try {
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorders[pid] = mediaRecorder; // Store reference to prevent garbage collection
     let audioChunks = [];
     
     mediaRecorder.ondataavailable = (e)=>{ 
@@ -1229,17 +1224,27 @@ function startMicAnalyzer(pid,stream){
       }
       // Restart recording for next 20s window
       audioChunks = [];
-      mediaRecorder.start();
+      try {
+        mediaRecorder.start();
+      } catch(e) {
+        console.warn('Could not restart recording for', pid, ':', e.message);
+      }
     };
     
     mediaRecorder.start();
     
     // Stop and restart every 20s to keep only last 20s
-    setInterval(()=>{ 
+    const intervalId = setInterval(()=>{ 
       if(mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
       }
     }, 20000);
+    
+    // Store interval ID for cleanup if needed
+    if(!mediaRecorders[pid]) mediaRecorders[pid] = {};
+    if(typeof mediaRecorders[pid] !== 'object') mediaRecorders[pid] = mediaRecorder;
+    
+    console.log(`Audio recording started for ${pid}`);
   } catch(e) {
     console.warn('Could not start audio recording for', pid, ':', e.message);
   }
