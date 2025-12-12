@@ -484,51 +484,12 @@ onAuthStateChanged(auth, async user => {
     const data = snap.val();
     
     if(!data){
-      // No user profile found. Try to create a minimal profile automatically.
-      console.warn('User data not found for uid:', uid, '— creating default profile.');
-      meDisplay.innerText = 'Tạo hồ sơ người dùng...';
-      const email = (user && user.email) ? user.email : '';
-      const derivedUsername = email ? String(email).split('@')[0] : ('user_' + uid.slice(0,6));
-      const derivedDisplay = (user && user.displayName) ? user.displayName : derivedUsername;
-      try {
-        await set(ref(db, `users/${uid}`), {
-          username: derivedUsername,
-          displayName: derivedDisplay,
-          email: email,
-          friends: {}
-        });
-        // Try to populate usernameIndex if missing (helps login lookup for older accounts)
-        try{
-          const idxSnap = await get(ref(db, `usernameIndex/${derivedUsername}`));
-          const idxVal = idxSnap.val();
-          if(!idxVal){
-            await set(ref(db, `usernameIndex/${derivedUsername}`), { uid: uid, email: email });
-            console.log('✓ usernameIndex populated for', derivedUsername);
-          } else if(idxVal.uid && idxVal.uid !== uid){
-            console.warn('usernameIndex exists for', derivedUsername, '->', idxVal.uid);
-          }
-        }catch(ixErr){ console.warn('Could not populate usernameIndex:', ixErr); }
-        // Reload the node to get consistent data
-        const newSnap = await get(ref(db, `users/${uid}`));
-        const newData = newSnap.val();
-        if(!newData){
-          throw new Error('Failed to create user record');
-        }
-        me = { uid, username: newData.username, displayName: newData.displayName };
-        meDisplay.innerText = me.displayName;
-        btnLogout.style.display='';
-        btnCreateRoom.disabled=false;
-        updateHeaderWithUser(newData);
-        btnManager.style.display = newData.isAdmin ? '' : 'none';
-        renderProfile(newData);
-        watchFriends();
-        watchInbox();
-      } catch(err){
-        console.error('Error creating user profile:', err);
-        meDisplay.innerText='Lỗi: Không thể tạo hồ sơ người dùng';
-        profile.innerHTML = '<div class="small">Vui lòng kiểm tra cấu hình Firebase hoặc tạo hồ sơ thủ công trong Firebase Console.</div>';
-        return;
-      }
+      // User profile not found - account was deleted
+      console.warn('User profile not found for uid:', uid);
+      meDisplay.innerText = 'Tài khoản không tồn tại';
+      btnLogout.style.display='';
+      profile.innerHTML = '<div class="small error">Tài khoản của bạn đã bị xóa. Vui lòng đăng xuất và đăng nhập lại.</div>';
+      return;
     } else {
       me = { uid, username: data.username, displayName: data.displayName };
       meDisplay.innerText = me.displayName;
