@@ -63,6 +63,17 @@ header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:lin
 
 <div id="stageWrap"><div id="stage"></div></div>
 
+<!-- On-screen debug panel (for diagnosing signaling/ICE) -->
+<div id="debugPanel" style="position:fixed;right:12px;bottom:90px;width:340px;max-height:40vh;overflow:auto;background:rgba(0,0,0,0.65);padding:10px;border-radius:10px;color:#e8eaed;font-size:12px;z-index:1000">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <strong>DEBUG</strong>
+    <div style="display:flex;gap:6px">
+      <button id="dbgClear" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:#fff;padding:4px;border-radius:6px;cursor:pointer">Clear</button>
+    </div>
+  </div>
+  <div id="dbgContent" style="white-space:pre-wrap;line-height:1.3;max-height:32vh;overflow:auto"></div>
+</div>
+
 <div class="controls">
   <button id="requestPermBtn" class="controlBtn" title="Enable Camera & Mic">SET</button>
   <button id="muteBtn" class="controlBtn dim" title="Toggle mic">MIC</button>
@@ -92,6 +103,21 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 console.debug('call.html loaded with DB URL:', window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL);
+
+// Debug helpers
+const dbgContent = document.getElementById('dbgContent');
+const dbgClear = document.getElementById('dbgClear');
+function dbg(msg){
+  const ts = new Date().toLocaleTimeString();
+  const line = `[${ts}] ${msg}`;
+  if(dbgContent){ dbgContent.innerText = line + '\n' + dbgContent.innerText; }
+  console.debug(line);
+}
+dbgClear.onclick = ()=>{ if(dbgContent) dbgContent.innerText = ''; };
+
+const peerStates = {}; // uid -> state
+function updatePeerState(pid, state){ peerStates[pid]=state; dbg(`Peer ${pid} state: ${state}`); renderPeerStates(); }
+function renderPeerStates(){ let s=''; for(const p in peerStates){ s += `${p}: ${peerStates[p]}\n`; } if(dbgContent) dbgContent.innerText = s + '\n' + dbgContent.innerText; }
 
 // Check auth state and wait for user data to load
 let authReadyPromise = new Promise((resolve) => {
@@ -203,7 +229,7 @@ function requestPermissions(){
     return;
   }
   
-  navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(stream=>{
+  navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true}}).then(stream=>{
     console.log('✓ Đã cấp quyền camera & mic');
     localStream=stream; 
     localCamEnabled=true; 
@@ -211,7 +237,8 @@ function requestPermissions(){
     
     tiles['me']=createTile('me', username);
     tiles['me'].video.srcObject=localStream;
-    try{ tiles['me'].avatar.style.display = 'none'; }catch(_){ }
+    // Mute local playback so you don't hear your own microphone (self-monitoring)
+    try{ tiles['me'].video.muted = true; tiles['me'].video.volume = 0; tiles['me'].avatar.style.display = 'none'; }catch(_){ }
     
     // Remove dim and no-perm classes
     camBtn.classList.remove('dim','no-perm');
@@ -350,6 +377,24 @@ function createPeer(pid, name){
   pcs[pid]=pc;
   tiles[pid]=createTile(pid, name);
   if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+  if(localStream) {
+    console.debug('Adding local tracks to PC for', pid, localStream.getTracks().map(t=>t.kind));
+    localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+  } else {
+    console.debug('No localStream yet when creating PC for', pid);
+  }
+  pc.ontrack = e=>{
+    console.debug('ontrack from', pid, 'streams:', e.streams);
+    tiles[pid].video.srcObject = e.streams[0];
+    try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
+    startMicAnalyzer(pid, e.streams[0]);
+  };
+  pc.onicecandidate = e=>{
+    console.debug('onicecandidate for', pid, e.candidate);
+    if(e.candidate) push(ref(db, `rooms/${roomId}/signals`), {from: uid, to: pid, type: 'candidate', data: e.candidate.toJSON()});
+  };
+  pc.oniceconnectionstatechange = ()=>{ console.debug('ICE connection state for', pid, pc.iceConnectionState); };
+  pc.onconnectionstatechange = ()=>{ console.debug('Connection state for', pid, pc.connectionState); };
   pc.ontrack = e=>{ tiles[pid].video.srcObject = e.streams[0]; startMicAnalyzer(pid, e.streams[0]); };
   pc.ontrack = e=>{ 
     tiles[pid].video.srcObject = e.streams[0]; 
