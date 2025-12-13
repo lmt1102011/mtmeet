@@ -790,6 +790,7 @@ function createTile(uid,name){
   tiles[uid]={el:tile,video,avatar,badge,micDot,uid,name};
   // Hide avatar automatically when video starts playing
   const hideAvatarOnPlay = ()=>{
+    console.log(`Video event triggered for ${uid}: hiding avatar`);
     if(tiles[uid] && tiles[uid].avatar) {
       tiles[uid].avatar.style.display = 'none';
     }
@@ -798,7 +799,51 @@ function createTile(uid,name){
   video.addEventListener('play', hideAvatarOnPlay);
   video.addEventListener('playing', hideAvatarOnPlay);
   // If the stream is removed or video has no tracks, show avatar again
-  video.addEventListener('emptied', ()=>{ if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = ''; });
+  video.addEventListener('emptied', ()=>{ 
+    console.log(`Video emptied for ${uid}: showing avatar`);
+    if(tiles[uid] && tiles[uid].avatar) tiles[uid].avatar.style.display = ''; 
+  });
+  
+  // Debug: log when srcObject is set
+  video.addEventListener('loadstart', ()=>{ console.log(`Video loadstart for ${uid}`); });
+  video.addEventListener('canplay', ()=>{ console.log(`Video canplay for ${uid}`); });
+  video.addEventListener('error', (e)=>{ console.error(`Video error for ${uid}:`, e); });
+  
+  // Allow user to click video to play if autoplay fails
+  video.addEventListener('click', ()=>{
+    if(video.paused || video.readyState < 3) {
+      video.play().catch(err => console.warn(`Manual play failed for ${uid}:`, err));
+    }
+  });
+  
+  // Add a play button overlay if video doesn't autoplay
+  const playOverlay = elt('div', {class:'playOverlay'}, '▶ Click to play');
+  playOverlay.style.cssText = `
+    position: absolute; 
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    background: rgba(0,0,0,0.7); 
+    color: white; 
+    padding: 8px 12px; 
+    border-radius: 6px; 
+    font-size: 12px; 
+    pointer-events: none; 
+    opacity: 0; 
+    transition: opacity 0.3s;
+  `;
+  tile.appendChild(playOverlay);
+  
+  // Show overlay if video doesn't play automatically
+  setTimeout(() => {
+    if(video.paused && tiles[uid] && tiles[uid].video.srcObject) {
+      playOverlay.style.opacity = '1';
+      playOverlay.style.pointerEvents = 'auto';
+    }
+  }, 2000); // Wait 2 seconds for autoplay attempt
+  
+  // Hide overlay when video starts playing
+  video.addEventListener('play', () => { playOverlay.style.opacity = '0'; playOverlay.style.pointerEvents = 'none'; });
   relayout();
   return tiles[uid];
 }
@@ -1038,7 +1083,27 @@ function createPeer(pid, name){
     if(tiles[pid]) {
       dbg(`Setting video.srcObject for ${pid}`);
       tiles[pid].video.srcObject = e.streams[0];
-      try{ tiles[pid].avatar.style.display = 'none'; }catch(_){ }
+      
+      // Debug: check if stream has video tracks
+      const stream = e.streams[0];
+      const videoTracks = stream.getVideoTracks();
+      const audioTracks = stream.getAudioTracks();
+      console.log(`Stream from ${pid} has ${videoTracks.length} video tracks, ${audioTracks.length} audio tracks`);
+      
+      // If stream has video tracks, hide avatar immediately
+      if(videoTracks.length > 0) {
+        tiles[pid].avatar.style.display = 'none';
+      }
+      
+      // Try to play the video
+      try {
+        const playPromise = tiles[pid].video.play();
+        if(playPromise !== undefined) {
+          playPromise.catch(err => { console.warn(`Autoplay prevented for ${pid}:`, err); });
+        }
+      } catch(err) {
+        console.warn(`Could not play video for ${pid}:`, err);
+      }
       if(e.track.kind === 'audio') startMicAnalyzer(pid, e.streams[0]);
     } else {
       dbg(`ERROR: tile not found for ${pid}`);
