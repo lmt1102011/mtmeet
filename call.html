@@ -930,6 +930,17 @@ async function requestPermissions(){
     console.error('Error loading friends:', e);
   }
   
+  // Add local tracks to existing peer connections if they were created before localStream
+  Object.values(pcs).forEach(pc => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        if (!pc.getSenders().some(sender => sender.track === track)) {
+          pc.addTrack(track, localStream);
+        }
+      });
+    }
+  });
+  
   joinRoom();
 }
 
@@ -1230,7 +1241,7 @@ function showPeerMenu(pid, peerName, btn) {
         });
         alert('Đã gửi lời mời kết bạn');
       } catch(e) { alert('Lỗi: ' + e.message); }
-      menu.remove();
+      try { if(menu) menu.remove(); } catch(e) { console.warn('Menu remove failed:', e); }
     };
     menu.appendChild(btnFriend);
   }
@@ -1242,7 +1253,7 @@ function showPeerMenu(pid, peerName, btn) {
   btnReport.onclick = async ()=>{ 
     if(!confirm('Gửi report người dùng ' + peerName + ' với đoạn âm thanh 20s vừa qua?')) return;
     // Ensure auth present
-    if(!auth || !auth.currentUser) { alert('Phiên đăng nhập không hợp lệ. Vui lòng đăng xuất và đăng nhập lại.'); menu.remove(); return; }
+    if(!auth || !auth.currentUser) { alert('Phiên đăng nhập không hợp lệ. Vui lòng đăng xuất và đăng nhập lại.'); try { if(menu) menu.remove(); } catch(e) { console.warn('Menu remove failed:', e); } return; }
 
     // Attempt to refresh token silently (best-effort)
     try { await auth.currentUser.getIdToken(true); } catch(_) { /* ignore */ }
@@ -1300,7 +1311,7 @@ function showPeerMenu(pid, peerName, btn) {
       alert('Lỗi gửi report: ' + (e.message || e));
       console.error('Report error:', e);
     }
-    menu.remove();
+    try { if(menu) menu.remove(); } catch(e) { console.warn('Menu remove failed:', e); }
     return;
   }
   };
@@ -1314,7 +1325,7 @@ function showPeerMenu(pid, peerName, btn) {
   document.body.appendChild(menu);
   
   // Close menu on outside click
-  const closeMenu = (e)=>{ if(!menu.contains(e.target) && e.target !== btn) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+  const closeMenu = (e)=>{ try { if(menu && !menu.contains(e.target) && e.target !== btn) { menu.remove(); document.removeEventListener('click', closeMenu); } } catch(e) { console.warn('Close menu failed:', e); } };
   setTimeout(()=>{ document.addEventListener('click', closeMenu); }, 0);
 
 
